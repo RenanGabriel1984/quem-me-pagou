@@ -64,16 +64,11 @@ export default function Settings() {
   };
 
   const handleBackup = async () => {
-    if (!process.env.GITHUB_TOKEN) {
-      toast.error("Chave GitHub não configurada. Adicione GITHUB_TOKEN nas Keys.");
-      return;
-    }
     setBackupLoading(true);
     try {
       // Gather all data from Convex via the hook
       const allPeople: any[] = [];
-      for (const sub of storage.subscriptionsWithPeople) {
-        const subIndex = storage.subscriptions.findIndex((s) => s._id === sub._id);
+      for (const [subIndex, sub] of storage.subscriptionsWithPeople.entries()) {
         sub.people.forEach((p: any) => {
           allPeople.push({
             subscriptionIndex: subIndex,
@@ -84,6 +79,7 @@ export default function Settings() {
             monthsPaid: p.monthsPaid,
             unpaidMonths: p.unpaidMonths,
             lastPaymentDate: p.lastPaymentDate,
+            lastPaidAt: p.lastPaidAt,
             proofNote: p.proofNote,
           });
         });
@@ -142,9 +138,16 @@ export default function Settings() {
           startDate: s.startDate,
           dueDay: s.dueDay,
         })),
-        people: result.data.people.map((p: any, index: number) => ({
-          subscriptionIndex: index,
-          ...p,
+        people: result.data.people.map((p: any) => ({
+          subscriptionIndex: p.subscriptionIndex ?? 0,
+          name: p.name,
+          phone: p.phone,
+          amount: p.amount,
+          paidThisMonth: p.paidThisMonth,
+          monthsPaid: p.monthsPaid,
+          unpaidMonths: p.unpaidMonths,
+          lastPaymentDate: p.lastPaymentDate,
+          proofNote: p.proofNote,
         })),
         settings: result.data.settings,
       };

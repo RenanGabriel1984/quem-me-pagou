@@ -28,6 +28,7 @@ export const restoreAll = mutation({
         monthsPaid: v.number(),
         unpaidMonths: v.number(),
         lastPaymentDate: v.optional(v.string()),
+        lastPaidAt: v.optional(v.number()),
         proofNote: v.optional(v.string()),
       }),
     ),
@@ -99,6 +100,7 @@ export const restoreAll = mutation({
           monthsPaid: person.monthsPaid,
           unpaidMonths: person.unpaidMonths,
           lastPaymentDate: person.lastPaymentDate,
+          lastPaidAt: person.lastPaidAt,
           proofNote: person.proofNote,
         });
       }
