@@ -16,6 +16,7 @@ import {
   AlertCircle,
   PiggyBank,
   TrendingDown,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +26,7 @@ import { toast } from "sonner";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { AppHeader } from "@/components/AppHeader";
 
 const categoryLabels: Record<Category, string> = {
   video: "Vídeo",
@@ -98,15 +100,13 @@ export default function SubscriptionDetail() {
   const paidAmount = subscription.people
     .filter((p: any) => p.paidThisMonth)
     .reduce((sum: number, p: any) => sum + p.amount, 0);
-  const pendingAmount = subscription.people
+
+  // Debt calculation: amount * unpaidMonths for each pending person
+  const pendingDebt = subscription.people
     .filter((p: any) => !p.paidThisMonth)
-    .reduce((sum: number, p: any) => sum + p.amount, 0);
+    .reduce((sum: number, p: any) => sum + p.amount * (p.unpaidMonths || 0), 0);
 
   // ── Savings calculations ──────────────────────────────────────────
-  const groupSavingsPerMonth = subscription.people.reduce(
-    (sum: number, p: any) => sum + (subscription.individualPrice - p.amount),
-    0,
-  );
   const groupTotalSavings = subscription.people.reduce(
     (sum: number, p: any) => sum + totalPersonSavings(subscription.individualPrice, p.amount, p.monthsPaid),
     0,
@@ -127,30 +127,43 @@ export default function SubscriptionDetail() {
     toast.success("Pessoa adicionada com sucesso!");
   };
 
-  const handleWhatsApp = (person: { name: string; phone: string; amount: number; monthsPaid: number }) => {
+  const handleWhatsApp = (person: { name: string; phone: string; amount: number; monthsPaid: number; unpaidMonths: number }) => {
     const pixKey = storage.settings.pixKey || "CHAVE_PIX_NAO_CONFIGURADA";
-    const ownerName = storage.settings.ownerName || "Proprietário";
     const dueDate = getDueDate(subscription.dueDay);
     const personSavings = totalPersonSavings(
       subscription.individualPrice,
       person.amount,
       person.monthsPaid,
     );
+    const totalDue = person.amount * (person.unpaidMonths || 0);
     const startLabel = formatStartMonth(subscription.startDate);
 
-    const message = [
+    const lines: string[] = [
       `Fala ${person.name}! 🍿`,
       ``,
-      `Sua cota do *${subscription.name}* vence dia *${dueDate}*.`,
+      `Passando para lembrar da sua cota do *${subscription.name}*.`,
       ``,
-      `💰 Valor: *${formatCurrency(person.amount)}*`,
-      `🔑 Pix: *${pixKey}*`,
-      ``,
-      personSavings > 0
-        ? `💡 Você sabia? Ao dividir esse plano com a gente, você já economizou *${formatCurrency(personSavings)}* desde ${startLabel}!`
-        : `💡 Ao dividir esse plano com a gente você economiza *${formatCurrency(subscription.individualPrice - person.amount)}* por mês!`,
-    ].join("\n");
+    ];
 
+    if (person.unpaidMonths > 0) {
+      lines.push(`⚠️ Pendência: *${person.unpaidMonths}* mês(es) em aberto`);
+      lines.push(`💰 Valor Total Devido: *${formatCurrency(totalDue)}* (${formatCurrency(person.amount)}/mês)`);
+    } else {
+      lines.push(`💰 Valor: *${formatCurrency(person.amount)}*`);
+    }
+
+    lines.push(`🔑 Pix: *${pixKey}*`);
+    lines.push(`📅 Vencimento: *${dueDate}*`);
+    lines.push(``);
+
+    if (personSavings > 0) {
+      lines.push(`💡 Você já economizou *${formatCurrency(personSavings)}* desde ${startLabel}!`);
+    } else {
+      const monthlySaving = subscription.individualPrice - person.amount;
+      lines.push(`💡 Ao dividir esse plano, você economiza *${formatCurrency(monthlySaving)}* por mês!`);
+    }
+
+    const message = lines.join("\n");
     const url = `https://wa.me/55${person.phone}?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
   };
@@ -164,9 +177,11 @@ export default function SubscriptionDetail() {
 
   return (
     <div className="min-h-screen bg-background">
+      <AppHeader />
+
       <div className="max-w-2xl mx-auto px-4 pb-24 safe-bottom">
-        {/* Header */}
-        <header className="flex items-center gap-3 pt-6 pb-2">
+        {/* Header with back button */}
+        <header className="flex items-center gap-3 pt-4 pb-2">
           <Button
             variant="ghost"
             size="icon"
@@ -204,8 +219,13 @@ export default function SubscriptionDetail() {
             <p className="text-sm font-bold text-[var(--paid)] mt-0.5">{formatCurrency(paidAmount)}</p>
           </div>
           <div className="rounded-xl bg-[var(--pending)]/5 border border-[var(--pending)]/15 p-3 text-center">
-            <p className="text-[10px] text-[var(--pending)] uppercase tracking-wide font-medium">Pendente</p>
-            <p className="text-sm font-bold text-[var(--pending)] mt-0.5">{formatCurrency(pendingAmount)}</p>
+            <p className="text-[10px] text-[var(--pending)] uppercase tracking-wide font-medium">Em Aberto</p>
+            <p className="text-sm font-bold text-[var(--pending)] mt-0.5">{formatCurrency(pendingDebt)}</p>
+            {pendingDebt > 0 && (
+              <p className="text-[9px] text-[var(--pending)]/60 mt-0.5">
+                {subscription.people.filter((p: any) => !p.paidThisMonth).reduce((sum: number, p: any) => sum + (p.unpaidMonths || 0), 0)} mês(es)
+              </p>
+            )}
           </div>
         </div>
 
@@ -300,6 +320,7 @@ export default function SubscriptionDetail() {
                 person.amount,
                 person.monthsPaid,
               );
+              const personTotalDue = person.amount * (person.unpaidMonths || 0);
 
               return (
                 <motion.div
@@ -340,6 +361,12 @@ export default function SubscriptionDetail() {
                                 Pago
                               </span>
                             )}
+                            {!person.paidThisMonth && (person.unpaidMonths || 0) > 1 && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[var(--pending)]/15 text-[var(--pending)] text-[10px] font-semibold">
+                                <AlertTriangle className="size-2.5" />
+                                {person.unpaidMonths} mês(es) em aberto
+                              </span>
+                            )}
                             {personSav > 0 && (
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-[10px] font-semibold">
                                 <PiggyBank className="size-2.5" />
@@ -360,6 +387,11 @@ export default function SubscriptionDetail() {
                               </span>
                             )}
                           </p>
+                          {!person.paidThisMonth && personTotalDue > 0 && (
+                            <p className="text-[11px] text-[var(--pending)] font-medium mt-0.5">
+                              Total devido: {formatCurrency(personTotalDue)}
+                            </p>
+                          )}
                         </div>
 
                         {/* Actions */}

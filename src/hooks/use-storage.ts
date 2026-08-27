@@ -23,33 +23,36 @@ function totalPersonSavings(
   return monthlySavings * monthsPaid;
 }
 
+// Helper to get month name in Portuguese
+function getMonthName(dateStr: string): string {
+  const date = new Date(dateStr);
+  const months = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  return `${months[date.getMonth()]}/${date.getFullYear()}`;
+}
+
+// Helper to format currency
+function formatCurrency(value: number): string {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 export function useStorage() {
   // Queries - these are reactive and will update in real-time
   const subscriptions = useQuery(api.subscriptions.list) ?? [];
   const settings = useQuery(api.settings.get) ?? { pixKey: "", ownerName: "" };
-  
-  // For each subscription, we need to fetch its people
-  // We'll use a separate query for each subscription's people
-  const getPeopleForSubscription = useCallback(
-    (subscriptionId: Id<"subscriptions">) => {
-      return useQuery(api.people.listBySubscription, { subscriptionId }) ?? [];
-    },
-    []
-  );
-  
+
   // Mutations
   const createSubscription = useMutation(api.subscriptions.create);
   const updateSubscription = useMutation(api.subscriptions.update);
   const deleteSubscription = useMutation(api.subscriptions.remove);
-  
+
   const createPerson = useMutation(api.people.create);
   const updatePersonStatus = useMutation(api.people.updateStatus);
   const deletePerson = useMutation(api.people.remove);
-  const resetAllMonthlyPayments = useMutation(api.people.resetAllMonthlyPayments);
-  
+  const resetMonthlyPaymentsMutation = useMutation(api.people.resetMonthlyPayments);
+
   const upsertSettings = useMutation(api.settings.upsert);
-  
-  // Wrapper functions that match the old API
+
+  // Wrapper functions
   const addSubscription = useCallback(
     async (sub: {
       name: string;
@@ -73,7 +76,7 @@ export function useStorage() {
     },
     [createSubscription]
   );
-  
+
   const addPerson = useCallback(
     async (
       subscriptionId: Id<"subscriptions">,
@@ -92,7 +95,7 @@ export function useStorage() {
     },
     [createPerson]
   );
-  
+
   const togglePersonStatus = useCallback(
     async (
       subscriptionId: Id<"subscriptions">,
@@ -106,47 +109,46 @@ export function useStorage() {
     },
     [updatePersonStatus]
   );
-  
+
   const removePerson = useCallback(
     async (personId: Id<"people">) => {
       await deletePerson({ id: personId });
     },
     [deletePerson]
   );
-  
+
   const updateSettings = useCallback(
     async (newSettings: { pixKey: string; ownerName: string }) => {
       await upsertSettings(newSettings);
     },
     [upsertSettings]
   );
-  
+
   const resetMonthlyPayments = useCallback(async () => {
-    await resetAllMonthlyPayments();
-  }, [resetAllMonthlyPayments]);
-  
+    await resetMonthlyPaymentsMutation();
+  }, [resetMonthlyPaymentsMutation]);
+
   // Computed values
   const totalMonthly = subscriptions.reduce(
     (sum, s) => sum + s.totalMonthly,
     0
   );
-  
-  // We need to fetch people for each subscription to compute totals
-  // This is done inline using the query hooks
+
+  // Fetch people for each subscription to compute totals
   const subscriptionsWithPeople = subscriptions.map((sub) => {
     const people = useQuery(api.people.listBySubscription, { subscriptionId: sub._id }) ?? [];
     return { ...sub, people };
   });
-  
+
   const totalPending = subscriptionsWithPeople.reduce((sum, s) => {
     return (
       sum +
       s.people
         .filter((p: any) => !p.paidThisMonth)
-        .reduce((pSum: number, p: any) => pSum + p.amount, 0)
+        .reduce((pSum: number, p: any) => pSum + (p.amount * (p.unpaidMonths || 1)), 0)
     );
   }, 0);
-  
+
   const totalPaid = subscriptionsWithPeople.reduce((sum, s) => {
     return (
       sum +
@@ -155,7 +157,7 @@ export function useStorage() {
         .reduce((pSum: number, p: any) => pSum + p.amount, 0)
     );
   }, 0);
-  
+
   // Total accumulated savings
   const totalAccumulatedSavings = subscriptionsWithPeople.reduce(
     (sum, s) => {
@@ -170,7 +172,7 @@ export function useStorage() {
     },
     0
   );
-  
+
   // Helper: per-person savings
   const getPersonSavings = useCallback(
     (individualPrice: number, amount: number, monthsPaid: number) => {
@@ -178,7 +180,31 @@ export function useStorage() {
     },
     []
   );
-  
+
+  // Helper: get total due for a person (amount * unpaidMonths)
+  const getPersonTotalDue = useCallback(
+    (amount: number, unpaidMonths: number) => {
+      return amount * (unpaidMonths || 0);
+    },
+    []
+  );
+
+  // Helper: get start month text
+  const getStartMonthText = useCallback(
+    (startDate: string) => {
+      return getMonthName(startDate);
+    },
+    []
+  );
+
+  // Helper: format currency
+  const formatBRL = useCallback(
+    (value: number) => {
+      return formatCurrency(value);
+    },
+    []
+  );
+
   return {
     subscriptions,
     subscriptionsWithPeople,
@@ -196,6 +222,8 @@ export function useStorage() {
     totalPaid,
     totalAccumulatedSavings,
     getPersonSavings,
-    getPeopleForSubscription,
+    getPersonTotalDue,
+    getStartMonthText,
+    formatBRL,
   };
 }

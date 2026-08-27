@@ -7,10 +7,10 @@ import {
   TrendingDown,
   PiggyBank,
   Plus,
-  Settings,
   X,
   Check,
   DollarSign,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,7 +26,8 @@ import {
 import { useNavigate } from "react-router";
 import { api } from "../convex/_generated/api";
 import { useMutation, useAction } from "convex/react";
-import type { Id } from "../convex/_generated/dataModel";
+import { AppHeader } from "@/components/AppHeader";
+import { PWAInstallBanner } from "@/components/PWAInstallBanner";
 
 const categoryLabels: Record<Category, string> = {
   video: "Vídeo",
@@ -244,28 +245,15 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-2xl mx-auto px-4 pb-24 safe-bottom">
-        {/* Header */}
-        <header className="flex items-center justify-between pt-6 pb-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              <span className="text-primary">💰</span> Quem me pagou?
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Assinaturas compartilhadas
-            </p>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-10"
-            onClick={() => navigate("/settings")}
-          >
-            <Settings className="size-5 text-muted-foreground" />
-          </Button>
-        </header>
+      <AppHeader />
 
-        {/* Savings Highlight Card — full width */}
+      <div className="max-w-2xl mx-auto px-4 pb-24 safe-bottom">
+        {/* PWA Install Banner */}
+        <div className="pt-4">
+          <PWAInstallBanner />
+        </div>
+
+        {/* Savings Highlight Card */}
         {storage.totalAccumulatedSavings > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
@@ -280,7 +268,7 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <p className="text-xs text-emerald-400/80 font-medium uppercase tracking-wide">
-                      Economia acumulada do grupo
+                      Economia Gerada no Ano
                     </p>
                     <p className="text-2xl font-bold text-emerald-400 mt-0.5">
                       {formatCurrency(storage.totalAccumulatedSavings)}
@@ -315,7 +303,7 @@ export default function Dashboard() {
                   <TrendingDown className="size-4 text-[var(--pending)]" />
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground font-medium">Pendente</p>
+              <p className="text-xs text-muted-foreground font-medium">Pendente a Receber</p>
               <p className="text-xl font-bold text-[var(--pending)] mt-1">
                 {formatCurrency(storage.totalPending)}
               </p>
@@ -348,6 +336,10 @@ export default function Dashboard() {
                 (sum: number, p: any) => sum + storage.getPersonSavings(sub.individualPrice, p.amount, p.monthsPaid),
                 0,
               );
+              // Total pending debt including unpaid months
+              const subPendingDebt = sub.people
+                .filter((p: any) => !p.paidThisMonth)
+                .reduce((sum: number, p: any) => sum + p.amount * (p.unpaidMonths || 1), 0);
 
               return (
                 <motion.div
@@ -383,13 +375,18 @@ export default function Dashboard() {
                               </span>
                               <span>•</span>
                               <span>vence em {daysUntilDue}d</span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-1">
                               {subSavings > 0 && (
-                                <>
-                                  <span>•</span>
-                                  <span className="text-emerald-400 font-medium text-xs">
-                                    −{formatCurrency(subSavings)} economizados
-                                  </span>
-                                </>
+                                <span className="text-emerald-400 font-medium text-xs">
+                                  💚 {formatCurrency(subSavings)} economizados
+                                </span>
+                              )}
+                              {subPendingDebt > 0 && (
+                                <span className="text-[var(--pending)] font-medium text-xs flex items-center gap-1">
+                                  <AlertTriangle className="size-3" />
+                                  {formatCurrency(subPendingDebt)} em aberto
+                                </span>
                               )}
                             </div>
                           </div>
@@ -432,24 +429,6 @@ export default function Dashboard() {
             <p className="text-sm text-muted-foreground mt-1">
               Toque em "Nova" para adicionar sua primeira assinatura
             </p>
-          </div>
-        )}
-
-        {/* Reset button */}
-        {storage.subscriptions.length > 0 && (
-          <div className="mt-8 text-center">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs text-muted-foreground"
-              onClick={() => {
-                if (confirm("Resetar todos os pagamentos para \"pendente\"?")) {
-                  storage.resetMonthlyPayments();
-                }
-              }}
-            >
-              Resetar pagamentos do mês
-            </Button>
           </div>
         )}
       </div>

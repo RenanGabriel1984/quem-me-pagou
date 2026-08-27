@@ -15,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { AppHeader } from "@/components/AppHeader";
 
 export default function Settings() {
   const storage = useStorage();
@@ -36,17 +37,10 @@ export default function Settings() {
 
   return (
     <div className="min-h-screen bg-background">
+      <AppHeader />
       <div className="max-w-2xl mx-auto px-4 pb-24 safe-bottom">
         {/* Header */}
-        <header className="flex items-center gap-3 pt-6 pb-6">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-10 -ml-2"
-            onClick={() => navigate("/dashboard")}
-          >
-            <ArrowLeft className="size-5" />
-          </Button>
+        <header className="flex items-center gap-3 pt-4 pb-6">
           <div>
             <h1 className="text-xl font-bold">Configurações</h1>
             <p className="text-sm text-muted-foreground">Chave PIX e dados pessoais</p>

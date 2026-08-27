@@ -24,6 +24,10 @@ export const create = mutation({
     name: v.string(),
     phone: v.string(),
     amount: v.number(),
+    paidThisMonth: v.optional(v.boolean()),
+    monthsPaid: v.optional(v.number()),
+    unpaidMonths: v.optional(v.number()),
+    lastPaymentDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = "default-user";
@@ -33,8 +37,10 @@ export const create = mutation({
       name: args.name,
       phone: args.phone,
       amount: args.amount,
-      paidThisMonth: false,
-      monthsPaid: 0,
+      paidThisMonth: args.paidThisMonth ?? false,
+      monthsPaid: args.monthsPaid ?? 0,
+      unpaidMonths: args.unpaidMonths ?? 1,
+      lastPaymentDate: args.lastPaymentDate,
     });
   },
 });
@@ -54,6 +60,7 @@ export const updateStatus = mutation({
       monthsPaid: args.paid && !person.paidThisMonth
         ? person.monthsPaid + 1
         : person.monthsPaid,
+      lastPaymentDate: args.paid ? new Date().toISOString().split("T")[0] : person.lastPaymentDate,
     });
   },
 });
@@ -81,7 +88,7 @@ export const remove = mutation({
   },
 });
 
-export const resetAllMonthlyPayments = mutation({
+export const resetMonthlyPayments = mutation({
   args: {},
   handler: async (ctx) => {
     const userId = "default-user";
@@ -91,7 +98,19 @@ export const resetAllMonthlyPayments = mutation({
       .collect();
     
     for (const person of allPeople) {
-      await ctx.db.patch(person._id, { paidThisMonth: false });
+      if (person.paidThisMonth) {
+        // Was paid → reset to unpaid with unpaidMonths = 1
+        await ctx.db.patch(person._id, { 
+          paidThisMonth: false,
+          unpaidMonths: 1,
+        });
+      } else {
+        // Was unpaid → increment unpaidMonths
+        await ctx.db.patch(person._id, { 
+          paidThisMonth: false,
+          unpaidMonths: (person.unpaidMonths || 0) + 1,
+        });
+      }
     }
   },
 });
