@@ -67,6 +67,7 @@ export const seedAll = action({
       monthsPaid: 10,
       unpaidMonths: 0,
       lastPaymentDate: "2025-08-15",
+      proofNote: "Pago via Pix dia 15/08",
     });
     await ctx.runMutation(api.people.create, {
       subscriptionId: netflixId,
@@ -87,6 +88,7 @@ export const seedAll = action({
       monthsPaid: 8,
       unpaidMonths: 2,
       lastPaymentDate: "2025-06-10",
+      proofNote: "Deixou troco pra próxima",
     });
 
     // --- People for Spotify ---
@@ -131,6 +133,7 @@ export const seedAll = action({
       monthsPaid: 8,
       unpaidMonths: 0,
       lastPaymentDate: "2025-08-08",
+      proofNote: "Comprovante enviado no grupo",
     });
     await ctx.runMutation(api.people.create, {
       subscriptionId: chatgptId,

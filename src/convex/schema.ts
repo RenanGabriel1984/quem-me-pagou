@@ -62,6 +62,8 @@ const schema = defineSchema(
       monthsPaid: v.number(),
       unpaidMonths: v.number(),
       lastPaymentDate: v.optional(v.string()),
+      lastPaidAt: v.optional(v.number()),
+      proofNote: v.optional(v.string()),
     }).index("by_subscription", ["subscriptionId"])
       .index("by_user", ["userId"]),
 

@@ -17,6 +17,8 @@ import {
   PiggyBank,
   TrendingDown,
   AlertTriangle,
+  FileText,
+  StickyNote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -77,6 +79,7 @@ export default function SubscriptionDetail() {
   const [personName, setPersonName] = useState("");
   const [personPhone, setPersonPhone] = useState("");
   const [personAmount, setPersonAmount] = useState("");
+  const [proofNoteInputs, setProofNoteInputs] = useState<Record<string, string>>({});
 
   const isLoading = storage.subscriptionsWithPeople === undefined;
 
@@ -412,6 +415,12 @@ export default function SubscriptionDetail() {
                                 Economizou {formatCurrency(personSav)}
                               </span>
                             )}
+                            {person.proofNote && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] font-semibold">
+                                <FileText className="size-2.5" />
+                                {person.proofNote}
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {formatCurrency(person.amount)}/mês
@@ -443,13 +452,16 @@ export default function SubscriptionDetail() {
                                 ? "border-[var(--paid)]/30 text-[var(--paid)] hover:bg-[var(--paid)]/10"
                                 : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
                             }`}
-                            onClick={() =>
-                              storage.togglePersonStatus(
-                                subscription._id,
-                                person._id,
-                                !person.paidThisMonth,
-                              )
-                            }
+                            onClick={() => {
+                              if (!person.paidThisMonth) {
+                                // Going to paid - ask for optional proof note
+                                const note = proofNoteInputs[person._id] || "";
+                                storage.togglePersonStatus(subscription._id, person._id, true, note || undefined);
+                                setProofNoteInputs((prev) => { const next = { ...prev }; delete next[person._id]; return next; });
+                              } else {
+                                storage.togglePersonStatus(subscription._id, person._id, false);
+                              }
+                            }}
                           >
                             <Check className={`size-3.5 ${person.paidThisMonth ? "animate-check-pop" : ""}`} />
                             {person.paidThisMonth ? "Pago" : "Marcar Pago"}
@@ -477,6 +489,21 @@ export default function SubscriptionDetail() {
                           </Button>
                         </div>
                       </div>
+
+                      {/* Proof note input (shown when about to mark as paid) */}
+                      {!person.paidThisMonth && (
+                        <div className="mt-2.5 pt-2.5 border-t border-border/30">
+                          <div className="flex items-center gap-2">
+                            <StickyNote className="size-3.5 text-muted-foreground flex-shrink-0" />
+                            <Input
+                              placeholder="Observação (opcional): Pago via Pix dia 10..."
+                              value={proofNoteInputs[person._id] || ""}
+                              onChange={(e) => setProofNoteInputs((prev) => ({ ...prev, [person._id]: e.target.value }))}
+                              className="h-9 text-xs bg-transparent border-border/30"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </motion.div>

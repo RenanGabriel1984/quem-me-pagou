@@ -28,6 +28,7 @@ export const create = mutation({
     monthsPaid: v.optional(v.number()),
     unpaidMonths: v.optional(v.number()),
     lastPaymentDate: v.optional(v.string()),
+    proofNote: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = "default-user";
@@ -41,6 +42,7 @@ export const create = mutation({
       monthsPaid: args.monthsPaid ?? 0,
       unpaidMonths: args.unpaidMonths ?? 1,
       lastPaymentDate: args.lastPaymentDate,
+      proofNote: args.proofNote,
     });
   },
 });
@@ -49,19 +51,30 @@ export const updateStatus = mutation({
   args: {
     id: v.id("people"),
     paid: v.boolean(),
+    proofNote: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const person = await ctx.db.get(args.id);
     if (!person) throw new Error("Person not found");
     
-    await ctx.db.patch(args.id, {
+    const now = Date.now();
+    const patchData: Record<string, any> = {
       paidThisMonth: args.paid,
       // Only count transitions from unpaid → paid
       monthsPaid: args.paid && !person.paidThisMonth
         ? person.monthsPaid + 1
         : person.monthsPaid,
       lastPaymentDate: args.paid ? new Date().toISOString().split("T")[0] : person.lastPaymentDate,
-    });
+    };
+
+    if (args.paid) {
+      patchData.lastPaidAt = now;
+      if (args.proofNote !== undefined) {
+        patchData.proofNote = args.proofNote;
+      }
+    }
+
+    await ctx.db.patch(args.id, patchData);
   },
 });
 
@@ -71,6 +84,7 @@ export const update = mutation({
     name: v.optional(v.string()),
     phone: v.optional(v.string()),
     amount: v.optional(v.number()),
+    proofNote: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;

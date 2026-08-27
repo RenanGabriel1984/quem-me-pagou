@@ -100,11 +100,13 @@ export function useStorage() {
     async (
       subscriptionId: Id<"subscriptions">,
       personId: Id<"people">,
-      paid: boolean
+      paid: boolean,
+      proofNote?: string,
     ) => {
       await updatePersonStatus({
         id: personId,
         paid,
+        proofNote: paid ? proofNote : undefined,
       });
     },
     [updatePersonStatus]
