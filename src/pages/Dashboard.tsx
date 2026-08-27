@@ -11,6 +11,8 @@ import {
   Check,
   DollarSign,
   AlertTriangle,
+  Search,
+  Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,6 +30,7 @@ import { api } from "../convex/_generated/api";
 import { useMutation, useAction } from "convex/react";
 import { AppHeader } from "@/components/AppHeader";
 import { PWAInstallBanner } from "@/components/PWAInstallBanner";
+import { DashboardSkeleton } from "@/components/Skeleton";
 
 const categoryLabels: Record<Category, string> = {
   video: "Vídeo",
@@ -125,7 +128,7 @@ function AddSubscriptionDialog({
           >
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold">Nova Assinatura</h2>
-              <Button variant="ghost" size="icon" className="size-8" onClick={onClose}>
+              <Button variant="ghost" size="icon" className="size-11" onClick={onClose}>
                 <X className="size-4" />
               </Button>
             </div>
@@ -137,13 +140,14 @@ function AddSubscriptionDialog({
                   placeholder="Ex: Netflix"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  className="h-12"
                 />
               </div>
 
               <div className="space-y-2">
                 <Label>Categoria</Label>
                 <Select value={category} onValueChange={(v) => setCategory(v as Category)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-12">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -165,6 +169,7 @@ function AddSubscriptionDialog({
                     placeholder="0,00"
                     value={totalMonthly}
                     onChange={(e) => setTotalMonthly(e.target.value)}
+                    className="h-12"
                   />
                 </div>
                 <div className="space-y-2">
@@ -175,6 +180,7 @@ function AddSubscriptionDialog({
                     placeholder="0,00"
                     value={individualPrice}
                     onChange={(e) => setIndividualPrice(e.target.value)}
+                    className="h-12"
                   />
                 </div>
               </div>
@@ -183,7 +189,7 @@ function AddSubscriptionDialog({
                 <div className="space-y-2">
                   <Label>Dia do Vencimento</Label>
                   <Select value={dueDay} onValueChange={setDueDay}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-12">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -201,6 +207,7 @@ function AddSubscriptionDialog({
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
+                    className="h-12"
                   />
                 </div>
               </div>
@@ -216,11 +223,11 @@ function AddSubscriptionDialog({
             </div>
 
             <div className="flex gap-3 mt-6">
-              <Button variant="outline" className="flex-1" onClick={onClose}>
+              <Button variant="outline" className="flex-1 h-12" onClick={onClose}>
                 Cancelar
               </Button>
               <Button
-                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                className="flex-1 h-12 bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={handleSubmit}
                 disabled={!name || !totalMonthly}
               >
@@ -234,14 +241,48 @@ function AddSubscriptionDialog({
   );
 }
 
+type FilterType = "all" | "pending" | "paid";
+
 export default function Dashboard() {
   const storage = useStorage();
   const navigate = useNavigate();
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const seedAll = useAction(api.seed.seedAll);
 
-  // Auto-seed on first load if no subscriptions exist
-  const shouldSeed = storage.subscriptions.length === 0;
+  const isLoading = storage.subscriptions === undefined;
+  const shouldSeed = !isLoading && storage.subscriptions.length === 0;
+
+  // Filter subscriptions
+  const filteredSubscriptions = (storage.subscriptionsWithPeople || []).filter((sub) => {
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const nameMatch = sub.name.toLowerCase().includes(q);
+      const personMatch = sub.people?.some(
+        (p: any) => p.name.toLowerCase().includes(q),
+      );
+      if (!nameMatch && !personMatch) return false;
+    }
+
+    // Status filter
+    if (activeFilter === "pending") {
+      const hasPending = sub.people?.some((p: any) => !p.paidThisMonth);
+      if (!hasPending) return false;
+    } else if (activeFilter === "paid") {
+      const allPaid = sub.people?.length > 0 && sub.people.every((p: any) => p.paidThisMonth);
+      if (!allPaid) return false;
+    }
+
+    return true;
+  });
+
+  const filters: { key: FilterType; label: string }[] = [
+    { key: "all", label: "Todos" },
+    { key: "pending", label: "Com Pendência" },
+    { key: "paid", label: "100% Pagos" },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -253,183 +294,246 @@ export default function Dashboard() {
           <PWAInstallBanner />
         </div>
 
-        {/* Savings Highlight Card */}
-        {storage.totalAccumulatedSavings > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4"
-          >
-            <Card className="bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent border-emerald-500/20 shadow-none py-5">
-              <CardContent className="px-5">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center size-12 rounded-2xl bg-emerald-500/15">
-                    <PiggyBank className="size-6 text-emerald-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-emerald-400/80 font-medium uppercase tracking-wide">
-                      Economia Gerada no Ano
-                    </p>
-                    <p className="text-2xl font-bold text-emerald-400 mt-0.5">
-                      {formatCurrency(storage.totalAccumulatedSavings)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <Card className="bg-card/60 border-border/40 shadow-none py-4">
-            <CardContent className="px-4">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="flex items-center justify-center size-8 rounded-lg bg-[var(--paid)]/10">
-                  <TrendingUp className="size-4 text-[var(--paid)]" />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground font-medium">Total Pago</p>
-              <p className="text-xl font-bold text-[var(--paid)] mt-1">
-                {formatCurrency(storage.totalPaid)}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card/60 border-border/40 shadow-none py-4">
-            <CardContent className="px-4">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="flex items-center justify-center size-8 rounded-lg bg-[var(--pending)]/10">
-                  <TrendingDown className="size-4 text-[var(--pending)]" />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground font-medium">Pendente a Receber</p>
-              <p className="text-xl font-bold text-[var(--pending)] mt-1">
-                {formatCurrency(storage.totalPending)}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Subscriptions Header */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Assinaturas</h2>
-          <Button
-            size="sm"
-            className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 h-9 rounded-lg"
-            onClick={() => setShowAddDialog(true)}
-          >
-            <Plus className="size-4" />
-            Nova
-          </Button>
-        </div>
-
-        {/* Subscription Cards */}
-        <div className="space-y-3">
-          <AnimatePresence mode="popLayout">
-            {storage.subscriptionsWithPeople.map((sub, index) => {
-              const daysUntilDue = getDaysUntilDue(sub.dueDay);
-              const paidCount = sub.people.filter((p: any) => p.paidThisMonth).length;
-              const totalPeople = sub.people.length;
-              const pendingPeople = totalPeople - paidCount;
-              const subSavings = sub.people.reduce(
-                (sum: number, p: any) => sum + storage.getPersonSavings(sub.individualPrice, p.amount, p.monthsPaid),
-                0,
-              );
-              // Total pending debt including unpaid months
-              const subPendingDebt = sub.people
-                .filter((p: any) => !p.paidThisMonth)
-                .reduce((sum: number, p: any) => sum + p.amount * (p.unpaidMonths || 1), 0);
-
-              return (
-                <motion.div
-                  key={sub._id}
-                  layout
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ delay: index * 0.05 }}
-                >
-                  <Card
-                    className="bg-card/60 border-border/40 shadow-none hover:border-primary/20 transition-all cursor-pointer active:scale-[0.99]"
-                    onClick={() => navigate(`/subscription/${sub._id}`)}
-                  >
-                    <CardContent className="px-5 py-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                          <div className="flex items-center justify-center size-11 rounded-xl bg-surface text-xl flex-shrink-0">
-                            {sub.icon}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-semibold truncate">{sub.name}</h3>
-                              <span
-                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${categoryColors[sub.category]}`}
-                              >
-                                {categoryLabels[sub.category]}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                              <span className="font-medium text-foreground">
-                                {formatCurrency(sub.totalMonthly)}
-                              </span>
-                              <span>•</span>
-                              <span>vence em {daysUntilDue}d</span>
-                            </div>
-                            <div className="flex items-center gap-3 mt-1">
-                              {subSavings > 0 && (
-                                <span className="text-emerald-400 font-medium text-xs">
-                                  💚 {formatCurrency(subSavings)} economizados
-                                </span>
-                              )}
-                              {subPendingDebt > 0 && (
-                                <span className="text-[var(--pending)] font-medium text-xs flex items-center gap-1">
-                                  <AlertTriangle className="size-3" />
-                                  {formatCurrency(subPendingDebt)} em aberto
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col items-end gap-1.5 flex-shrink-0 ml-3">
-                          <div
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${
-                              pendingPeople > 0
-                                ? "bg-[var(--pending)]/10 text-[var(--pending)]"
-                                : "bg-[var(--paid)]/10 text-[var(--paid)]"
-                            }`}
-                          >
-                            {pendingPeople > 0 ? (
-                              <DollarSign className="size-3" />
-                            ) : (
-                              <Check className="size-3" />
-                            )}
-                            {pendingPeople > 0
-                              ? `${pendingPeople} pendente${pendingPeople > 1 ? "s" : ""}`
-                              : "Todos pagaram"}
-                          </div>
-                          <span className="text-[11px] text-muted-foreground">
-                            {paidCount}/{totalPeople}
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-        </div>
-
-        {storage.subscriptions.length === 0 && !shouldSeed && (
-          <div className="text-center py-16">
-            <p className="text-4xl mb-4">📭</p>
-            <p className="text-muted-foreground font-medium">Nenhuma assinatura ainda</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Toque em "Nova" para adicionar sua primeira assinatura
-            </p>
+        {isLoading ? (
+          <div className="pt-4">
+            <DashboardSkeleton />
           </div>
+        ) : (
+          <>
+            {/* Savings Highlight Card */}
+            {storage.totalAccumulatedSavings > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4"
+              >
+                <Card className="bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent border-emerald-500/20 shadow-none py-5">
+                  <CardContent className="px-5">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center size-12 rounded-2xl bg-emerald-500/15">
+                        <PiggyBank className="size-6 text-emerald-400" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-emerald-400/80 font-medium uppercase tracking-wide">
+                          Economia Gerada no Ano
+                        </p>
+                        <p className="text-2xl font-bold text-emerald-400 mt-0.5">
+                          {formatCurrency(storage.totalAccumulatedSavings)}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <Card className="bg-card/60 border-border/40 shadow-none py-4">
+                <CardContent className="px-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center justify-center size-8 rounded-lg bg-[var(--paid)]/10">
+                      <TrendingUp className="size-4 text-[var(--paid)]" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-medium">Total Pago</p>
+                  <p className="text-xl font-bold text-[var(--paid)] mt-1">
+                    {formatCurrency(storage.totalPaid)}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-card/60 border-border/40 shadow-none py-4">
+                <CardContent className="px-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center justify-center size-8 rounded-lg bg-[var(--pending)]/10">
+                      <TrendingDown className="size-4 text-[var(--pending)]" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-medium">Pendente a Receber</p>
+                  <p className="text-xl font-bold text-[var(--pending)] mt-1">
+                    {formatCurrency(storage.totalPending)}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Search Bar */}
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar assinatura ou pessoa..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 h-12 bg-card/60 border-border/40 rounded-xl"
+              />
+              {searchQuery && (
+                <button
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 min-w-[44px] min-h-[44px] flex items-center justify-center -mr-2"
+                  onClick={() => setSearchQuery("")}
+                >
+                  <X className="size-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Filter Buttons */}
+            <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
+              <Filter className="size-4 text-muted-foreground flex-shrink-0" />
+              {filters.map((f) => (
+                <Button
+                  key={f.key}
+                  variant={activeFilter === f.key ? "default" : "outline"}
+                  size="sm"
+                  className={`h-9 rounded-lg text-xs flex-shrink-0 px-3 ${
+                    activeFilter === f.key
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-card/60 border-border/40 text-muted-foreground"
+                  }`}
+                  onClick={() => setActiveFilter(f.key)}
+                >
+                  {f.label}
+                </Button>
+              ))}
+            </div>
+
+            {/* Subscriptions Header */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">
+                Assinaturas
+                {searchQuery || activeFilter !== "all" ? (
+                  <span className="text-sm text-muted-foreground font-normal ml-2">
+                    ({filteredSubscriptions.length})
+                  </span>
+                ) : null}
+              </h2>
+              <Button
+                size="sm"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 h-11 rounded-xl text-sm"
+                onClick={() => setShowAddDialog(true)}
+              >
+                <Plus className="size-4" />
+                Nova
+              </Button>
+            </div>
+
+            {/* Subscription Cards */}
+            <div className="space-y-3">
+              <AnimatePresence mode="popLayout">
+                {filteredSubscriptions.map((sub, index) => {
+                  const daysUntilDue = getDaysUntilDue(sub.dueDay);
+                  const paidCount = sub.people.filter((p: any) => p.paidThisMonth).length;
+                  const totalPeople = sub.people.length;
+                  const pendingPeople = totalPeople - paidCount;
+                  const subSavings = sub.people.reduce(
+                    (sum: number, p: any) => sum + storage.getPersonSavings(sub.individualPrice, p.amount, p.monthsPaid),
+                    0,
+                  );
+                  const subPendingDebt = sub.people
+                    .filter((p: any) => !p.paidThisMonth)
+                    .reduce((sum: number, p: any) => sum + p.amount * (p.unpaidMonths || 1), 0);
+
+                  return (
+                    <motion.div
+                      key={sub._id}
+                      layout
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      <Card
+                        className="bg-card/60 border-border/40 shadow-none hover:border-primary/20 transition-all cursor-pointer active:scale-[0.99]"
+                        onClick={() => navigate(`/subscription/${sub._id}`)}
+                      >
+                        <CardContent className="px-5 py-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                              <div className="flex items-center justify-center size-11 rounded-xl bg-surface text-xl flex-shrink-0">
+                                {sub.icon}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                  <h3 className="font-semibold truncate">{sub.name}</h3>
+                                  <span
+                                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${categoryColors[sub.category]}`}
+                                  >
+                                    {categoryLabels[sub.category]}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                                  <span className="font-medium text-foreground">
+                                    {formatCurrency(sub.totalMonthly)}
+                                  </span>
+                                  <span>•</span>
+                                  <span>vence em {daysUntilDue}d</span>
+                                </div>
+                                <div className="flex items-center gap-3 mt-1">
+                                  {subSavings > 0 && (
+                                    <span className="text-emerald-400 font-medium text-xs">
+                                      💚 {formatCurrency(subSavings)} economizados
+                                    </span>
+                                  )}
+                                  {subPendingDebt > 0 && (
+                                    <span className="text-[var(--pending)] font-medium text-xs flex items-center gap-1">
+                                      <AlertTriangle className="size-3" />
+                                      {formatCurrency(subPendingDebt)} em aberto
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col items-end gap-1.5 flex-shrink-0 ml-3">
+                              <div
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${
+                                  pendingPeople > 0
+                                    ? "bg-[var(--pending)]/10 text-[var(--pending)]"
+                                    : "bg-[var(--paid)]/10 text-[var(--paid)]"
+                                }`}
+                              >
+                                {pendingPeople > 0 ? (
+                                  <DollarSign className="size-3" />
+                                ) : (
+                                  <Check className="size-3" />
+                                )}
+                                {pendingPeople > 0
+                                  ? `${pendingPeople} pendente${pendingPeople > 1 ? "s" : ""}`
+                                  : "Todos pagaram"}
+                              </div>
+                              <span className="text-[11px] text-muted-foreground">
+                                {paidCount}/{totalPeople}
+                              </span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
+
+            {filteredSubscriptions.length === 0 && storage.subscriptions.length > 0 && (
+              <div className="text-center py-12">
+                <p className="text-3xl mb-3">🔍</p>
+                <p className="text-muted-foreground font-medium">Nenhum resultado encontrado</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Tente ajustar a busca ou filtros
+                </p>
+              </div>
+            )}
+
+            {storage.subscriptions.length === 0 && !shouldSeed && (
+              <div className="text-center py-16">
+                <p className="text-4xl mb-4">📭</p>
+                <p className="text-muted-foreground font-medium">Nenhuma assinatura ainda</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Toque em "Nova" para adicionar sua primeira assinatura
+                </p>
+              </div>
+            )}
+          </>
         )}
       </div>
 

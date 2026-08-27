@@ -27,6 +27,8 @@ import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { AppHeader } from "@/components/AppHeader";
+import { DetailSkeleton } from "@/components/Skeleton";
+import { PixCopyButton, PixQRCode } from "@/components/PixDisplay";
 
 const categoryLabels: Record<Category, string> = {
   video: "Vídeo",
@@ -76,8 +78,21 @@ export default function SubscriptionDetail() {
   const [personPhone, setPersonPhone] = useState("");
   const [personAmount, setPersonAmount] = useState("");
 
+  const isLoading = storage.subscriptionsWithPeople === undefined;
+
   // Find the subscription in the data
-  const subscription = storage.subscriptionsWithPeople.find((s) => s._id === id);
+  const subscription = (storage.subscriptionsWithPeople || []).find((s) => s._id === id);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <AppHeader />
+        <div className="max-w-2xl mx-auto px-4 pt-4 pb-24 safe-bottom">
+          <DetailSkeleton />
+        </div>
+      </div>
+    );
+  }
 
   if (!subscription) {
     return (
@@ -85,7 +100,7 @@ export default function SubscriptionDetail() {
         <div className="text-center">
           <p className="text-2xl mb-2">🔍</p>
           <p className="text-muted-foreground">Assinatura não encontrada</p>
-          <Button variant="ghost" className="mt-4" onClick={() => navigate("/dashboard")}>
+          <Button variant="ghost" className="mt-4 min-h-[44px]" onClick={() => navigate("/dashboard")}>
             Voltar
           </Button>
         </div>
@@ -185,7 +200,7 @@ export default function SubscriptionDetail() {
           <Button
             variant="ghost"
             size="icon"
-            className="size-10 -ml-2"
+            className="size-11 -ml-2"
             onClick={() => navigate("/dashboard")}
           >
             <ArrowLeft className="size-5" />
@@ -195,7 +210,7 @@ export default function SubscriptionDetail() {
               <span className="text-xl">{subscription.icon}</span>
               <h1 className="text-xl font-bold truncate">{subscription.name}</h1>
             </div>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span
                 className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${categoryColors[subscription.category]}`}
               >
@@ -228,6 +243,24 @@ export default function SubscriptionDetail() {
             )}
           </div>
         </div>
+
+        {/* PIX Actions Row */}
+        {storage.settings.pixKey && (
+          <div className="flex items-center gap-2 mb-4">
+            <PixCopyButton
+              pixKey={storage.settings.pixKey}
+              amount={pendingDebt > 0 ? pendingDebt : subscription.totalMonthly}
+              ownerName={storage.settings.ownerName || "Quem Me Pagou"}
+              description={`Cota ${subscription.name}`}
+            />
+            <PixQRCode
+              pixKey={storage.settings.pixKey}
+              amount={pendingDebt > 0 ? pendingDebt : subscription.totalMonthly}
+              ownerName={storage.settings.ownerName || "Quem Me Pagou"}
+              description={`Cota ${subscription.name}`}
+            />
+          </div>
+        )}
 
         {/* Individual vs Group Comparison Card */}
         {subscription.individualPrice > 0 && (
@@ -291,10 +324,10 @@ export default function SubscriptionDetail() {
           </h2>
           <Button
             size="sm"
-            className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 h-8 rounded-lg text-xs"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 h-11 rounded-xl text-sm"
             onClick={() => setShowAddPerson(true)}
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-4" />
             Adicionar
           </Button>
         </div>
@@ -348,7 +381,13 @@ export default function SubscriptionDetail() {
                               : "bg-surface text-muted-foreground"
                           }`}
                         >
-                          {person.name.charAt(0).toUpperCase()}
+                          {person.paidThisMonth ? (
+                            <span className="animate-check-pop">
+                              <Check className="size-5" />
+                            </span>
+                          ) : (
+                            person.name.charAt(0).toUpperCase()
+                          )}
                         </div>
 
                         {/* Info */}
@@ -399,7 +438,7 @@ export default function SubscriptionDetail() {
                           <Button
                             variant={person.paidThisMonth ? "outline" : "default"}
                             size="sm"
-                            className={`h-8 px-2.5 text-xs gap-1 rounded-lg ${
+                            className={`h-11 px-3 text-xs gap-1.5 rounded-xl min-w-[44px] transition-all duration-300 ${
                               person.paidThisMonth
                                 ? "border-[var(--paid)]/30 text-[var(--paid)] hover:bg-[var(--paid)]/10"
                                 : "bg-primary text-primary-foreground hover:bg-primary/90"
@@ -412,7 +451,7 @@ export default function SubscriptionDetail() {
                               )
                             }
                           >
-                            <Check className="size-3" />
+                            <Check className={`size-3.5 ${person.paidThisMonth ? "animate-check-pop" : ""}`} />
                             {person.paidThisMonth ? "Pago" : "Marcar Pago"}
                           </Button>
 
@@ -420,21 +459,21 @@ export default function SubscriptionDetail() {
                             <Button
                               variant="outline"
                               size="icon"
-                              className="size-8 border-green-500/30 text-green-400 hover:bg-green-500/10 rounded-lg"
+                              className="size-11 border-green-500/30 text-green-400 hover:bg-green-500/10 rounded-xl"
                               title="Enviar cobrança via WhatsApp"
                               onClick={() => handleWhatsApp(person)}
                             >
-                              <MessageCircle className="size-3.5" />
+                              <MessageCircle className="size-4" />
                             </Button>
                           )}
 
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="size-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
+                            className="size-11 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl"
                             onClick={() => handleDeletePerson(person._id)}
                           >
-                            <Trash2 className="size-3.5" />
+                            <Trash2 className="size-4" />
                           </Button>
                         </div>
                       </div>
@@ -477,7 +516,7 @@ export default function SubscriptionDetail() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-8"
+                  className="size-11"
                   onClick={() => setShowAddPerson(false)}
                 >
                   <X className="size-4" />
@@ -491,6 +530,7 @@ export default function SubscriptionDetail() {
                     placeholder="Nome da pessoa"
                     value={personName}
                     onChange={(e) => setPersonName(e.target.value)}
+                    className="h-12"
                   />
                 </div>
 
@@ -501,7 +541,7 @@ export default function SubscriptionDetail() {
                     <Input
                       type="tel"
                       placeholder="11999887766"
-                      className="pl-9"
+                      className="pl-9 h-12"
                       value={personPhone}
                       onChange={(e) => setPersonPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
                     />
@@ -519,7 +559,7 @@ export default function SubscriptionDetail() {
                       type="number"
                       step="0.01"
                       placeholder="0,00"
-                      className="pl-9"
+                      className="pl-9 h-12"
                       value={personAmount}
                       onChange={(e) => setPersonAmount(e.target.value)}
                     />
@@ -533,11 +573,11 @@ export default function SubscriptionDetail() {
               </div>
 
               <div className="flex gap-3 mt-6">
-                <Button variant="outline" className="flex-1" onClick={() => setShowAddPerson(false)}>
+                <Button variant="outline" className="flex-1 h-12" onClick={() => setShowAddPerson(false)}>
                   Cancelar
                 </Button>
                 <Button
-                  className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                  className="flex-1 h-12 bg-primary text-primary-foreground hover:bg-primary/90"
                   onClick={handleAddPerson}
                   disabled={!personName || !personPhone || !personAmount}
                 >

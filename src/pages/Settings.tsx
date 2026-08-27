@@ -69,6 +69,7 @@ export default function Settings() {
                   placeholder="Ex: 123.456.789-00, email@ex.com.br"
                   value={pixKey}
                   onChange={(e) => setPixKey(e.target.value)}
+                  className="h-12"
                 />
               </CardContent>
             </Card>
@@ -95,6 +96,7 @@ export default function Settings() {
                   placeholder="Ex: Carlos"
                   value={ownerName}
                   onChange={(e) => setOwnerName(e.target.value)}
+                  className="h-12"
                 />
               </CardContent>
             </Card>
@@ -146,7 +148,7 @@ export default function Settings() {
           >
             <Button
               variant="ghost"
-              className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 gap-2 h-10"
+              className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 gap-2 h-12"
               onClick={() => {
                 if (confirm("Isso vai apagar TODOS os seus dados. Tem certeza?")) {
                   toast.success("Dados resetados! Recarregando...");

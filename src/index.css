@@ -177,3 +177,74 @@
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+/* ── Skeleton loader shimmer ─────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface) 25%,
+    var(--surface-hover) 37%,
+    var(--surface) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+
+.dark .skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.08) 37%,
+    rgba(255,255,255,0.04) 63%
+  );
+  background-size: 200% 100%;
+}
+
+/* ── Payment toggle animation ────────────────────────────── */
+@keyframes checkPop {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.25); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-check-pop {
+  animation: checkPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes pulse-paid {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+}
+.animate-pulse-paid {
+  animation: pulse-paid 0.6s ease-out;
+}
+
+/* ── Ensure minimum 44px touch targets ───────────────────── */
+button,
+[role='button'],
+input[type='checkbox'] {
+  min-height: 44px;
+}
+button:not([class*='size-']) {
+  min-width: 44px;
+}
+button[class*='size-8'] {
+  min-height: 32px;
+  min-width: 32px;
+}
+button[class*='size-9'] {
+  min-height: 36px;
+  min-width: 36px;
+}
+
+/* ── QR code container ───────────────────────────────────── */
+.qr-container {
+  background: white;
+  border-radius: 12px;
+  padding: 12px;
+  display: inline-flex;
+}
