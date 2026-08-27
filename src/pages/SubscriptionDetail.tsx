@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import { useStorage } from "@/hooks/use-storage";
 import type { Category } from "@/types/data";
+import { formatStartMonth, totalPersonSavings, monthsSinceStart } from "@/types/data";
 import {
   ArrowLeft,
   Plus,
@@ -13,6 +14,8 @@ import {
   Phone,
   DollarSign,
   AlertCircle,
+  PiggyBank,
+  TrendingDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -95,6 +98,17 @@ export default function SubscriptionDetail() {
     .filter((p) => !p.paidThisMonth)
     .reduce((sum, p) => sum + p.amount, 0);
 
+  // ── Savings calculations ──────────────────────────────────────────
+  const groupSavingsPerMonth = subscription.people.reduce(
+    (sum, p) => sum + (subscription.individualPrice - p.amount),
+    0,
+  );
+  const groupTotalSavings = subscription.people.reduce(
+    (sum, p) => sum + totalPersonSavings(subscription.individualPrice, p.amount, p.monthsPaid),
+    0,
+  );
+  const monthsActive = monthsSinceStart(subscription.startDate);
+
   const handleAddPerson = () => {
     if (!personName || !personPhone || !personAmount) return;
     storage.addPerson(subscription.id, {
@@ -109,11 +123,30 @@ export default function SubscriptionDetail() {
     toast.success("Pessoa adicionada com sucesso!");
   };
 
-  const handleWhatsApp = (person: { name: string; phone: string; amount: number }) => {
+  const handleWhatsApp = (person: { name: string; phone: string; amount: number; monthsPaid: number }) => {
     const pixKey = storage.state.settings.pixKey || "CHAVE_PIX_NAO_CONFIGURADA";
     const ownerName = storage.state.settings.ownerName || "Proprietário";
     const dueDate = getDueDate(subscription.dueDay);
-    const message = `Oi ${person.name}! 👋\n\nLembrete da assinatura *${subscription.name}*:\n\n💰 Valor: *${formatCurrency(person.amount)}*\n📅 Vencimento: *${dueDate}*\n\nChave PIX: *${pixKey}*\n\nFico no aguardo! 😊\n— ${ownerName}`;
+    const personSavings = totalPersonSavings(
+      subscription.individualPrice,
+      person.amount,
+      person.monthsPaid,
+    );
+    const startLabel = formatStartMonth(subscription.startDate);
+
+    const message = [
+      `Fala ${person.name}! 🍿`,
+      ``,
+      `Sua cota do *${subscription.name}* vence dia *${dueDate}*.`,
+      ``,
+      `💰 Valor: *${formatCurrency(person.amount)}*`,
+      `🔑 Pix: *${pixKey}*`,
+      ``,
+      personSavings > 0
+        ? `💡 Você sabia? Ao dividir esse plano com a gente, você já economizou *${formatCurrency(personSavings)}* desde ${startLabel}!`
+        : `💡 Ao dividir esse plano com a gente você economiza *${formatCurrency(subscription.individualPrice - person.amount)}* por mês!`,
+    ].join("\n");
+
     const url = `https://wa.me/55${person.phone}?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
   };
@@ -156,7 +189,7 @@ export default function SubscriptionDetail() {
           </div>
         </header>
 
-        {/* Summary */}
+        {/* Summary Row */}
         <div className="grid grid-cols-3 gap-2 my-5">
           <div className="rounded-xl bg-surface/60 border border-surface-border/40 p-3 text-center">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Total</p>
@@ -171,6 +204,61 @@ export default function SubscriptionDetail() {
             <p className="text-sm font-bold text-[var(--pending)] mt-0.5">{formatCurrency(pendingAmount)}</p>
           </div>
         </div>
+
+        {/* Individual vs Group Comparison Card */}
+        {subscription.individualPrice > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <Card className="bg-gradient-to-br from-emerald-500/8 via-emerald-500/3 to-transparent border-emerald-500/15 shadow-none py-4 mb-4">
+              <CardContent className="px-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <PiggyBank className="size-4 text-emerald-400" />
+                  <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">
+                    Comparativo de Economia
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {/* Individual price */}
+                  <div className="flex-1 text-center">
+                    <p className="text-[10px] text-muted-foreground font-medium uppercase">Individual</p>
+                    <p className="text-lg font-bold text-muted-foreground mt-0.5 line-through decoration-destructive/40">
+                      {formatCurrency(subscription.individualPrice)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/60">por pessoa</p>
+                  </div>
+
+                  <TrendingDown className="size-5 text-emerald-400 flex-shrink-0" />
+
+                  {/* Group price */}
+                  <div className="flex-1 text-center">
+                    <p className="text-[10px] text-emerald-400 font-medium uppercase">No Grupo</p>
+                    <p className="text-lg font-bold text-emerald-400 mt-0.5">
+                      {formatCurrency(subscription.totalMonthly)}
+                    </p>
+                    <p className="text-[10px] text-emerald-400/60">total do grupo</p>
+                  </div>
+
+                  <div className="w-px h-10 bg-emerald-500/20 flex-shrink-0" />
+
+                  {/* Total saved */}
+                  <div className="flex-1 text-center">
+                    <p className="text-[10px] text-emerald-400 font-medium uppercase">Economizado</p>
+                    <p className="text-lg font-bold text-emerald-400 mt-0.5">
+                      {formatCurrency(groupTotalSavings)}
+                    </p>
+                    <p className="text-[10px] text-emerald-400/60">
+                      {monthsActive} mes(es) ativo(s)
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* People Header */}
         <div className="flex items-center justify-between mb-3">
@@ -202,104 +290,123 @@ export default function SubscriptionDetail() {
         {/* People List */}
         <div className="space-y-2">
           <AnimatePresence mode="popLayout">
-            {subscription.people.map((person, index) => (
-              <motion.div
-                key={person.id}
-                layout
-                initial={{ opacity: 0, x: -12 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 12 }}
-                transition={{ delay: index * 0.03 }}
-              >
-                <Card
-                  className={`py-0 overflow-hidden transition-all shadow-none ${
-                    person.paidThisMonth
-                      ? "bg-[var(--paid)]/5 border-[var(--paid)]/20"
-                      : "bg-card/60 border-border/40"
-                  }`}
+            {subscription.people.map((person, index) => {
+              const personSav = totalPersonSavings(
+                subscription.individualPrice,
+                person.amount,
+                person.monthsPaid,
+              );
+
+              return (
+                <motion.div
+                  key={person.id}
+                  layout
+                  initial={{ opacity: 0, x: -12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 12 }}
+                  transition={{ delay: index * 0.03 }}
                 >
-                  <CardContent className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      {/* Avatar */}
-                      <div
-                        className={`flex items-center justify-center size-10 rounded-full text-sm font-bold flex-shrink-0 ${
-                          person.paidThisMonth
-                            ? "bg-[var(--paid)]/15 text-[var(--paid)]"
-                            : "bg-surface text-muted-foreground"
-                        }`}
-                      >
-                        {person.name.charAt(0).toUpperCase()}
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium truncate text-sm">{person.name}</span>
-                          {person.paidThisMonth && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[var(--paid)]/15 text-[var(--paid)] text-[10px] font-semibold">
-                              <Check className="size-2.5" />
-                              Pago
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {formatCurrency(person.amount)}
-                          {person.phone && (
-                            <span className="ml-2 text-muted-foreground/60">
-                              {person.phone.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3")}
-                            </span>
-                          )}
-                        </p>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <Button
-                          variant={person.paidThisMonth ? "outline" : "default"}
-                          size="sm"
-                          className={`h-8 px-2.5 text-xs gap-1 rounded-lg ${
+                  <Card
+                    className={`py-0 overflow-hidden transition-all shadow-none ${
+                      person.paidThisMonth
+                        ? "bg-[var(--paid)]/5 border-[var(--paid)]/20"
+                        : "bg-card/60 border-border/40"
+                    }`}
+                  >
+                    <CardContent className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        {/* Avatar */}
+                        <div
+                          className={`flex items-center justify-center size-10 rounded-full text-sm font-bold flex-shrink-0 ${
                             person.paidThisMonth
-                              ? "border-[var(--paid)]/30 text-[var(--paid)] hover:bg-[var(--paid)]/10"
-                              : "bg-primary text-primary-foreground hover:bg-primary/90"
+                              ? "bg-[var(--paid)]/15 text-[var(--paid)]"
+                              : "bg-surface text-muted-foreground"
                           }`}
-                          onClick={() =>
-                            storage.updatePersonStatus(
-                              subscription.id,
-                              person.id,
-                              !person.paidThisMonth,
-                            )
-                          }
                         >
-                          <Check className="size-3" />
-                          {person.paidThisMonth ? "Pago" : "Marcar Pago"}
-                        </Button>
+                          {person.name.charAt(0).toUpperCase()}
+                        </div>
 
-                        {!person.paidThisMonth && person.phone && (
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium truncate text-sm">{person.name}</span>
+                            {person.paidThisMonth && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[var(--paid)]/15 text-[var(--paid)] text-[10px] font-semibold">
+                                <Check className="size-2.5" />
+                                Pago
+                              </span>
+                            )}
+                            {personSav > 0 && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-[10px] font-semibold">
+                                <PiggyBank className="size-2.5" />
+                                Economizou {formatCurrency(personSav)}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {formatCurrency(person.amount)}/mês
+                            {person.phone && (
+                              <span className="ml-2 text-muted-foreground/60">
+                                {person.phone.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3")}
+                              </span>
+                            )}
+                            {person.monthsPaid > 0 && (
+                              <span className="ml-2 text-emerald-400/60">
+                                · {person.monthsPaid}m pago{person.monthsPaid > 1 ? "s" : ""}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
                           <Button
-                            variant="outline"
-                            size="icon"
-                            className="size-8 border-green-500/30 text-green-400 hover:bg-green-500/10 rounded-lg"
-                            title="Enviar cobrança via WhatsApp"
-                            onClick={() => handleWhatsApp(person)}
+                            variant={person.paidThisMonth ? "outline" : "default"}
+                            size="sm"
+                            className={`h-8 px-2.5 text-xs gap-1 rounded-lg ${
+                              person.paidThisMonth
+                                ? "border-[var(--paid)]/30 text-[var(--paid)] hover:bg-[var(--paid)]/10"
+                                : "bg-primary text-primary-foreground hover:bg-primary/90"
+                            }`}
+                            onClick={() =>
+                              storage.updatePersonStatus(
+                                subscription.id,
+                                person.id,
+                                !person.paidThisMonth,
+                              )
+                            }
                           >
-                            <MessageCircle className="size-3.5" />
+                            <Check className="size-3" />
+                            {person.paidThisMonth ? "Pago" : "Marcar Pago"}
                           </Button>
-                        )}
 
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
-                          onClick={() => handleDeletePerson(person.id)}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
+                          {!person.paidThisMonth && person.phone && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="size-8 border-green-500/30 text-green-400 hover:bg-green-500/10 rounded-lg"
+                              title="Enviar cobrança via WhatsApp"
+                              onClick={() => handleWhatsApp(person)}
+                            >
+                              <MessageCircle className="size-3.5" />
+                            </Button>
+                          )}
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
+                            onClick={() => handleDeletePerson(person.id)}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
         </div>
 
@@ -381,6 +488,11 @@ export default function SubscriptionDetail() {
                       onChange={(e) => setPersonAmount(e.target.value)}
                     />
                   </div>
+                  {personAmount && subscription.individualPrice > 0 && (
+                    <p className="text-[11px] text-emerald-400 font-medium">
+                      Economia mensal: {formatCurrency(subscription.individualPrice - parseFloat(personAmount))}
+                    </p>
+                  )}
                 </div>
               </div>
 

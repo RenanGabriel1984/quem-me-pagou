@@ -1,5 +1,16 @@
-import { useState, useCallback, useEffect } from "react";
-import type { AppState, Subscription, Person, AppSettings, Category } from "@/types/data";
+import { useState, useCallback } from "react";
+import type {
+  AppState,
+  Subscription,
+  Person,
+  AppSettings,
+  Category,
+} from "@/types/data";
+import {
+  monthsSinceStart,
+  totalGroupSavings,
+  totalPersonSavings,
+} from "@/types/data";
 
 const STORAGE_KEY = "quem-me-pagou-data";
 
@@ -8,7 +19,6 @@ function generateId(): string {
 }
 
 function getDefaultData(): AppState {
-  const now = new Date();
   return {
     settings: {
       pixKey: "email@exemplo.com.br",
@@ -21,11 +31,13 @@ function getDefaultData(): AppState {
         category: "video" as Category,
         icon: "🎬",
         totalMonthly: 55.90,
+        individualPrice: 62.90,
+        startDate: "2025-01-15",
         dueDay: 15,
         people: [
-          { id: "p1", name: "Carlos", phone: "11999887766", amount: 18.63, paidThisMonth: true },
-          { id: "p2", name: "Ana", phone: "11988776655", amount: 18.63, paidThisMonth: true },
-          { id: "p3", name: "Pedro", phone: "11977665544", amount: 18.64, paidThisMonth: false },
+          { id: "p1", name: "Carlos", phone: "11999887766", amount: 18.63, paidThisMonth: true, monthsPaid: 7 },
+          { id: "p2", name: "Ana", phone: "11988776655", amount: 18.63, paidThisMonth: true, monthsPaid: 5 },
+          { id: "p3", name: "Pedro", phone: "11977665544", amount: 18.64, paidThisMonth: false, monthsPaid: 3 },
         ],
       },
       {
@@ -34,10 +46,12 @@ function getDefaultData(): AppState {
         category: "musica" as Category,
         icon: "🎵",
         totalMonthly: 34.90,
+        individualPrice: 21.90,
+        startDate: "2025-03-10",
         dueDay: 10,
         people: [
-          { id: "p4", name: "Carlos", phone: "11999887766", amount: 17.45, paidThisMonth: true },
-          { id: "p5", name: "Julia", phone: "11966554433", amount: 17.45, paidThisMonth: false },
+          { id: "p4", name: "Carlos", phone: "11999887766", amount: 17.45, paidThisMonth: true, monthsPaid: 5 },
+          { id: "p5", name: "Julia", phone: "11966554433", amount: 17.45, paidThisMonth: false, monthsPaid: 4 },
         ],
       },
       {
@@ -46,12 +60,14 @@ function getDefaultData(): AppState {
         category: "software" as Category,
         icon: "🤖",
         totalMonthly: 115.00,
+        individualPrice: 130.00,
+        startDate: "2024-11-05",
         dueDay: 5,
         people: [
-          { id: "p6", name: "Carlos", phone: "11999887766", amount: 28.75, paidThisMonth: true },
-          { id: "p7", name: "Bruno", phone: "11955443322", amount: 28.75, paidThisMonth: true },
-          { id: "p8", name: "Marina", phone: "11944332211", amount: 28.75, paidThisMonth: true },
-          { id: "p9", name: "Rafael", phone: "11933221100", amount: 28.75, paidThisMonth: false },
+          { id: "p6", name: "Carlos", phone: "11999887766", amount: 28.75, paidThisMonth: true, monthsPaid: 9 },
+          { id: "p7", name: "Bruno", phone: "11955443322", amount: 28.75, paidThisMonth: true, monthsPaid: 8 },
+          { id: "p8", name: "Marina", phone: "11944332211", amount: 28.75, paidThisMonth: true, monthsPaid: 6 },
+          { id: "p9", name: "Rafael", phone: "11933221100", amount: 28.75, paidThisMonth: false, monthsPaid: 2 },
         ],
       },
       {
@@ -60,10 +76,12 @@ function getDefaultData(): AppState {
         category: "cursos" as Category,
         icon: "📚",
         totalMonthly: 89.00,
+        individualPrice: 89.00,
+        startDate: "2025-06-20",
         dueDay: 20,
         people: [
-          { id: "p10", name: "Carlos", phone: "11999887766", amount: 44.50, paidThisMonth: true },
-          { id: "p11", name: "Fernanda", phone: "11922110099", amount: 44.50, paidThisMonth: false },
+          { id: "p10", name: "Carlos", phone: "11999887766", amount: 44.50, paidThisMonth: true, monthsPaid: 2 },
+          { id: "p11", name: "Fernanda", phone: "11922110099", amount: 44.50, paidThisMonth: false, monthsPaid: 1 },
         ],
       },
     ],
@@ -134,8 +152,16 @@ export function useStorage() {
   );
 
   const addPerson = useCallback(
-    (subscriptionId: string, person: Omit<Person, "id" | "paidThisMonth">) => {
-      const newPerson: Person = { ...person, id: generateId(), paidThisMonth: false };
+    (
+      subscriptionId: string,
+      person: Omit<Person, "id" | "paidThisMonth" | "monthsPaid">,
+    ) => {
+      const newPerson: Person = {
+        ...person,
+        id: generateId(),
+        paidThisMonth: false,
+        monthsPaid: 0,
+      };
       persist({
         ...state,
         subscriptions: state.subscriptions.map((s) =>
@@ -157,7 +183,16 @@ export function useStorage() {
             ? {
                 ...s,
                 people: s.people.map((p) =>
-                  p.id === personId ? { ...p, paidThisMonth: paid } : p,
+                  p.id === personId
+                    ? {
+                        ...p,
+                        paidThisMonth: paid,
+                        // Only count transitions from unpaid → paid
+                        monthsPaid: paid && !p.paidThisMonth
+                          ? p.monthsPaid + 1
+                          : p.monthsPaid,
+                      }
+                    : p,
                 ),
               }
             : s,
@@ -191,8 +226,12 @@ export function useStorage() {
     });
   }, [state, persist]);
 
-  // Computed values
-  const totalMonthly = state.subscriptions.reduce((sum, s) => sum + s.totalMonthly, 0);
+  // ── Computed values ──────────────────────────────────────────────
+
+  const totalMonthly = state.subscriptions.reduce(
+    (sum, s) => sum + s.totalMonthly,
+    0,
+  );
 
   const totalPending = state.subscriptions.reduce((sum, s) => {
     return (
@@ -212,6 +251,17 @@ export function useStorage() {
     );
   }, 0);
 
+  // Total accumulated savings across all subscriptions and all people
+  const totalAccumulatedSavings = state.subscriptions.reduce(
+    (sum, s) => sum + totalGroupSavings(s),
+    0,
+  );
+
+  // Helper: per-person savings for a subscription
+  function getPersonSavings(sub: Subscription, person: Person): number {
+    return totalPersonSavings(sub.individualPrice, person.amount, person.monthsPaid);
+  }
+
   return {
     state,
     updateSettings,
@@ -225,5 +275,7 @@ export function useStorage() {
     totalMonthly,
     totalPending,
     totalPaid,
+    totalAccumulatedSavings,
+    getPersonSavings,
   };
 }

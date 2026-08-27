@@ -1,10 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useStorage } from "@/hooks/use-storage";
 import type { Category } from "@/types/data";
 import {
   TrendingUp,
   TrendingDown,
+  PiggyBank,
   Plus,
   Settings,
   X,
@@ -65,6 +66,8 @@ function AddSubscriptionDialog({
     category: Category;
     icon: string;
     totalMonthly: number;
+    individualPrice: number;
+    startDate: string;
     dueDay: number;
     people: [];
   }) => void;
@@ -72,6 +75,10 @@ function AddSubscriptionDialog({
   const [name, setName] = useState("");
   const [category, setCategory] = useState<Category>("video");
   const [totalMonthly, setTotalMonthly] = useState("");
+  const [individualPrice, setIndividualPrice] = useState("");
+  const [startDate, setStartDate] = useState(
+    new Date().toISOString().slice(0, 10),
+  );
   const [dueDay, setDueDay] = useState("15");
 
   const iconsByCategory: Record<Category, string> = {
@@ -89,11 +96,15 @@ function AddSubscriptionDialog({
       category,
       icon: iconsByCategory[category],
       totalMonthly: parseFloat(totalMonthly),
+      individualPrice: individualPrice ? parseFloat(individualPrice) : parseFloat(totalMonthly),
+      startDate: startDate || new Date().toISOString().slice(0, 10),
       dueDay: parseInt(dueDay),
       people: [],
     });
     setName("");
     setTotalMonthly("");
+    setIndividualPrice("");
+    setStartDate(new Date().toISOString().slice(0, 10));
     setDueDay("15");
     onClose();
   };
@@ -116,7 +127,7 @@ function AddSubscriptionDialog({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 24 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative bg-card border border-border/60 rounded-2xl p-6 w-full max-w-md shadow-2xl safe-bottom"
+            className="relative bg-card border border-border/60 rounded-2xl p-6 w-full max-w-md shadow-2xl safe-bottom max-h-[90vh] overflow-y-auto"
           >
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold">Nova Assinatura</h2>
@@ -153,7 +164,7 @@ function AddSubscriptionDialog({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Valor Mensal (R$)</Label>
+                  <Label>Valor Mensal do Grupo (R$)</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -162,6 +173,19 @@ function AddSubscriptionDialog({
                     onChange={(e) => setTotalMonthly(e.target.value)}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label>Preço Individual Est. (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="0,00"
+                    value={individualPrice}
+                    onChange={(e) => setIndividualPrice(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Dia do Vencimento</Label>
                   <Select value={dueDay} onValueChange={setDueDay}>
@@ -177,7 +201,24 @@ function AddSubscriptionDialog({
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Data de Início</Label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </div>
               </div>
+
+              {individualPrice && totalMonthly && parseFloat(individualPrice) > parseFloat(totalMonthly) && (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
+                  <PiggyBank className="size-4 text-emerald-400 flex-shrink-0" />
+                  <p className="text-xs text-emerald-400 font-medium">
+                    Economia mensal do grupo: {formatCurrency(parseFloat(individualPrice) - parseFloat(totalMonthly))}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3 mt-6">
@@ -226,6 +267,33 @@ export default function Dashboard() {
             <Settings className="size-5 text-muted-foreground" />
           </Button>
         </header>
+
+        {/* Savings Highlight Card — full width */}
+        {storage.totalAccumulatedSavings > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4"
+          >
+            <Card className="bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent border-emerald-500/20 shadow-none py-5">
+              <CardContent className="px-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center size-12 rounded-2xl bg-emerald-500/15">
+                    <PiggyBank className="size-6 text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-emerald-400/80 font-medium uppercase tracking-wide">
+                      Economia acumulada do grupo
+                    </p>
+                    <p className="text-2xl font-bold text-emerald-400 mt-0.5">
+                      {formatCurrency(storage.totalAccumulatedSavings)}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 gap-3 mb-6">
@@ -279,6 +347,10 @@ export default function Dashboard() {
               const paidCount = sub.people.filter((p) => p.paidThisMonth).length;
               const totalPeople = sub.people.length;
               const pendingPeople = totalPeople - paidCount;
+              const subSavings = sub.people.reduce(
+                (sum, p) => sum + storage.getPersonSavings(sub, p),
+                0,
+              );
 
               return (
                 <motion.div
@@ -314,6 +386,14 @@ export default function Dashboard() {
                               </span>
                               <span>•</span>
                               <span>vence em {daysUntilDue}d</span>
+                              {subSavings > 0 && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-emerald-400 font-medium text-xs">
+                                    −{formatCurrency(subSavings)} economizados
+                                  </span>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
