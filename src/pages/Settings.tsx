@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { motion } from "framer-motion";
 import { useStorage } from "@/hooks/use-storage";
 import { api } from "../convex/_generated/api";
 import {
-  ArrowLeft,
   Save,
   Key,
   User,
@@ -15,20 +13,16 @@ import {
   CloudDownload,
   CloudUpload,
   Loader2,
-  CheckCircle2,
-  ExternalLink,
   Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/AppHeader";
 
 export default function Settings() {
   const storage = useStorage();
-  const navigate = useNavigate();
 
   const [pixKey, setPixKey] = useState(storage.settings.pixKey);
   const [ownerName, setOwnerName] = useState(storage.settings.ownerName);
@@ -49,8 +43,7 @@ export default function Settings() {
   const restoreFromGist = useAction(api.github.restoreFromGist);
   const restoreAll = useMutation(api.restore.restoreAll);
 
-  // Raw queries for backup (need full data)
-  const subscriptions = useQuery(api.subscriptions.list) ?? [];
+
 
   // Sync local state with Convex data
   useEffect(() => {

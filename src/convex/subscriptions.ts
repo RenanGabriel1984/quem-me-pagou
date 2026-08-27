@@ -1,6 +1,5 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { auth } from "./auth";
 
 // Helper to get user ID (falls back to "anonymous" for unauthenticated users)
 function getUserId(ctx: any): string {
@@ -74,7 +73,7 @@ export const update = mutation({
     const { id, ...updates } = args;
     // Remove undefined values
     const filteredUpdates = Object.fromEntries(
-      Object.entries(updates).filter(([_, v]) => v !== undefined)
+      Object.entries(updates).filter(([, val]) => val !== undefined)
     );
     await ctx.db.patch(id, filteredUpdates);
   },
