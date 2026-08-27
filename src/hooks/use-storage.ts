@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type { Id } from "../convex/_generated/dataModel";
 
 // Helper to compute total person savings
@@ -26,8 +26,11 @@ function formatCurrency(value: number): string {
 }
 
 export function useStorage() {
-  // Queries - these are reactive and will update in real-time
+  // Single query for all subscriptions
   const subscriptions = useQuery(api.subscriptions.list) ?? [];
+  // Single query for ALL people (no more useQuery in loop!)
+  const allPeople = useQuery(api.people.listAll) ?? [];
+  // Settings
   const settings = useQuery(api.settings.get) ?? { pixKey: "", ownerName: "" };
 
   // Mutations
@@ -36,13 +39,22 @@ export function useStorage() {
   const deleteSubscription = useMutation(api.subscriptions.remove);
 
   const createPerson = useMutation(api.people.create);
+  const updatePerson = useMutation(api.people.update);
   const updatePersonStatus = useMutation(api.people.updateStatus);
   const deletePerson = useMutation(api.people.remove);
   const resetMonthlyPaymentsMutation = useMutation(api.people.resetMonthlyPayments);
 
   const upsertSettings = useMutation(api.settings.upsert);
 
-  // Wrapper functions
+  // Group people by subscriptionId (client-side, no hooks in loop)
+  const subscriptionsWithPeople = useMemo(() => {
+    return subscriptions.map((sub) => {
+      const people = allPeople.filter((p) => p.subscriptionId === sub._id);
+      return { ...sub, people };
+    });
+  }, [subscriptions, allPeople]);
+
+  // Wrapper: add subscription
   const addSubscription = useCallback(
     async (sub: {
       name: string;
@@ -52,7 +64,6 @@ export function useStorage() {
       individualPrice: number;
       startDate: string;
       dueDay: number;
-      people: any[];
     }) => {
       await createSubscription({
         name: sub.name,
@@ -67,6 +78,38 @@ export function useStorage() {
     [createSubscription]
   );
 
+  // Wrapper: edit subscription
+  const editSubscription = useCallback(
+    async (
+      id: Id<"subscriptions">,
+      updates: {
+        name?: string;
+        category?: string;
+        icon?: string;
+        totalMonthly?: number;
+        individualPrice?: number;
+        startDate?: string;
+        dueDay?: number;
+      }
+    ) => {
+      await updateSubscription({
+        id,
+        ...updates,
+        category: updates.category as any,
+      });
+    },
+    [updateSubscription]
+  );
+
+  // Wrapper: remove subscription
+  const removeSubscription = useCallback(
+    async (id: Id<"subscriptions">) => {
+      await deleteSubscription({ id });
+    },
+    [deleteSubscription]
+  );
+
+  // Wrapper: add person
   const addPerson = useCallback(
     async (
       subscriptionId: Id<"subscriptions">,
@@ -86,6 +129,23 @@ export function useStorage() {
     [createPerson]
   );
 
+  // Wrapper: edit person
+  const editPerson = useCallback(
+    async (
+      personId: Id<"people">,
+      updates: {
+        name?: string;
+        phone?: string;
+        amount?: number;
+        proofNote?: string;
+      }
+    ) => {
+      await updatePerson({ id: personId, ...updates });
+    },
+    [updatePerson]
+  );
+
+  // Wrapper: toggle person status
   const togglePersonStatus = useCallback(
     async (
       subscriptionId: Id<"subscriptions">,
@@ -102,6 +162,7 @@ export function useStorage() {
     [updatePersonStatus]
   );
 
+  // Wrapper: remove person
   const removePerson = useCallback(
     async (personId: Id<"people">) => {
       await deletePerson({ id: personId });
@@ -109,6 +170,7 @@ export function useStorage() {
     [deletePerson]
   );
 
+  // Wrapper: update settings
   const updateSettings = useCallback(
     async (newSettings: { pixKey: string; ownerName: string }) => {
       await upsertSettings(newSettings);
@@ -116,6 +178,7 @@ export function useStorage() {
     [upsertSettings]
   );
 
+  // Wrapper: reset monthly
   const resetMonthlyPayments = useCallback(async () => {
     await resetMonthlyPaymentsMutation();
   }, [resetMonthlyPaymentsMutation]);
@@ -126,18 +189,12 @@ export function useStorage() {
     0
   );
 
-  // Fetch people for each subscription to compute totals
-  const subscriptionsWithPeople = subscriptions.map((sub) => {
-    const people = useQuery(api.people.listBySubscription, { subscriptionId: sub._id }) ?? [];
-    return { ...sub, people };
-  });
-
   const totalPending = subscriptionsWithPeople.reduce((sum, s) => {
     return (
       sum +
       s.people
-        .filter((p: any) => !p.paidThisMonth)
-        .reduce((pSum: number, p: any) => pSum + (p.amount * (p.unpaidMonths || 1)), 0)
+        .filter((p) => !p.paidThisMonth)
+        .reduce((pSum, p) => pSum + (p.amount * (p.unpaidMonths || 1)), 0)
     );
   }, 0);
 
@@ -145,8 +202,8 @@ export function useStorage() {
     return (
       sum +
       s.people
-        .filter((p: any) => p.paidThisMonth)
-        .reduce((pSum: number, p: any) => pSum + p.amount, 0)
+        .filter((p) => p.paidThisMonth)
+        .reduce((pSum, p) => pSum + p.amount, 0)
     );
   }, 0);
 
@@ -156,7 +213,7 @@ export function useStorage() {
       return (
         sum +
         s.people.reduce(
-          (pSum: number, p: any) =>
+          (pSum, p) =>
             pSum + totalPersonSavings(s.individualPrice, p.amount, p.monthsPaid),
           0
         )
@@ -173,7 +230,7 @@ export function useStorage() {
     []
   );
 
-  // Helper: get total due for a person (amount * unpaidMonths)
+  // Helper: get total due for a person
   const getPersonTotalDue = useCallback(
     (amount: number, unpaidMonths: number) => {
       return amount * (unpaidMonths || 0);
@@ -200,11 +257,13 @@ export function useStorage() {
   return {
     subscriptions,
     subscriptionsWithPeople,
+    allPeople,
     settings,
     addSubscription,
-    updateSubscription,
-    deleteSubscription,
+    editSubscription,
+    removeSubscription,
     addPerson,
+    editPerson,
     togglePersonStatus,
     removePerson,
     updateSettings,

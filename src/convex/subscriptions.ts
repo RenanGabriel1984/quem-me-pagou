@@ -1,16 +1,12 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-
-// Helper to get user ID (falls back to "anonymous" for unauthenticated users)
-function getUserId(ctx: any): string {
-  // For now, use a simple approach - if auth is available, use it; otherwise default
-  return "default-user";
-}
+import { getUserId, requireUserId } from "./helpers";
 
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const userId = getUserId(ctx);
+    const userId = await getUserId(ctx);
+    if (!userId) return [];
     return await ctx.db
       .query("subscriptions")
       .withIndex("by_user", (q: any) => q.eq("userId", userId))
@@ -42,7 +38,7 @@ export const create = mutation({
     dueDay: v.number(),
   },
   handler: async (ctx, args) => {
-    const userId = getUserId(ctx);
+    const userId = await requireUserId(ctx);
     return await ctx.db.insert("subscriptions", {
       userId,
       ...args,
@@ -71,7 +67,6 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;
-    // Remove undefined values
     const filteredUpdates = Object.fromEntries(
       Object.entries(updates).filter(([, val]) => val !== undefined)
     );
@@ -87,11 +82,11 @@ export const remove = mutation({
       .query("people")
       .withIndex("by_subscription", (q: any) => q.eq("subscriptionId", args.id))
       .collect();
-    
+
     for (const person of people) {
       await ctx.db.delete(person._id);
     }
-    
+
     await ctx.db.delete(args.id);
   },
 });

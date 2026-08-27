@@ -1,11 +1,17 @@
 import { api } from "./_generated/api";
 import { action, query } from "./_generated/server";
+import { getUserId } from "./helpers";
 
 export const hasData = query({
   args: {},
   handler: async (ctx) => {
-    const subs = await ctx.db.query("subscriptions").first();
-    return subs !== null;
+    const userId = await getUserId(ctx);
+    if (!userId) return false;
+    const sub = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_user", (q: any) => q.eq("userId", userId))
+      .first();
+    return sub !== null;
   },
 });
 
@@ -60,7 +66,7 @@ export const seedAll = action({
     await ctx.runMutation(api.people.create, {
       subscriptionId: netflixId,
       name: "João Silva",
-      phone: "5511999887766",
+      phone: "11999887766",
       amount: 18.63,
       paidThisMonth: true,
       monthsPaid: 10,
@@ -71,7 +77,7 @@ export const seedAll = action({
     await ctx.runMutation(api.people.create, {
       subscriptionId: netflixId,
       name: "Maria Santos",
-      phone: "5511988776655",
+      phone: "11988776655",
       amount: 18.63,
       paidThisMonth: true,
       monthsPaid: 10,
@@ -81,7 +87,7 @@ export const seedAll = action({
     await ctx.runMutation(api.people.create, {
       subscriptionId: netflixId,
       name: "Pedro Costa",
-      phone: "5511977665544",
+      phone: "11977665544",
       amount: 18.64,
       paidThisMonth: false,
       monthsPaid: 8,
@@ -94,7 +100,7 @@ export const seedAll = action({
     await ctx.runMutation(api.people.create, {
       subscriptionId: spotifyId,
       name: "Ana Oliveira",
-      phone: "5511966554433",
+      phone: "11966554433",
       amount: 11.63,
       paidThisMonth: true,
       monthsPaid: 12,
@@ -104,7 +110,7 @@ export const seedAll = action({
     await ctx.runMutation(api.people.create, {
       subscriptionId: spotifyId,
       name: "Lucas Ferreira",
-      phone: "5511955443322",
+      phone: "11955443322",
       amount: 11.63,
       paidThisMonth: false,
       monthsPaid: 10,
@@ -114,7 +120,7 @@ export const seedAll = action({
     await ctx.runMutation(api.people.create, {
       subscriptionId: spotifyId,
       name: "Carla Mendes",
-      phone: "5511944332211",
+      phone: "11944332211",
       amount: 11.64,
       paidThisMonth: true,
       monthsPaid: 11,
@@ -126,7 +132,7 @@ export const seedAll = action({
     await ctx.runMutation(api.people.create, {
       subscriptionId: chatgptId,
       name: "Roberto Almeida",
-      phone: "5511933221100",
+      phone: "11933221100",
       amount: 40.00,
       paidThisMonth: true,
       monthsPaid: 8,
@@ -137,7 +143,7 @@ export const seedAll = action({
     await ctx.runMutation(api.people.create, {
       subscriptionId: chatgptId,
       name: "Juliana Lima",
-      phone: "5511922110099",
+      phone: "11922110099",
       amount: 40.00,
       paidThisMonth: false,
       monthsPaid: 6,
@@ -147,7 +153,7 @@ export const seedAll = action({
     await ctx.runMutation(api.people.create, {
       subscriptionId: chatgptId,
       name: "Fernando Rocha",
-      phone: "5511911009988",
+      phone: "11911009988",
       amount: 40.00,
       paidThisMonth: true,
       monthsPaid: 7,
@@ -159,7 +165,7 @@ export const seedAll = action({
     await ctx.runMutation(api.people.create, {
       subscriptionId: udemyId,
       name: "Camila Souza",
-      phone: "5511900998877",
+      phone: "11900998877",
       amount: 29.97,
       paidThisMonth: true,
       monthsPaid: 6,
@@ -169,7 +175,7 @@ export const seedAll = action({
     await ctx.runMutation(api.people.create, {
       subscriptionId: udemyId,
       name: "Marcos Pereira",
-      phone: "5511900887766",
+      phone: "11900887766",
       amount: 29.97,
       paidThisMonth: true,
       monthsPaid: 6,

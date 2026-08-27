@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ArrowRight, Shield, Smartphone, Zap, Receipt, Users, MessageCircle } from "lucide-react";
+import { ArrowRight, Shield, Smartphone, Zap, Receipt, Users, MessageCircle, Cloud, BarChart3, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router";
 
@@ -20,9 +20,19 @@ const features = [
     description: "Envie lembretes automáticos com um toque para quem está pendente.",
   },
   {
-    icon: Shield,
-    title: "Dados Locais",
-    description: "Tudo salvo no seu navegador. Sem cadastro, sem servidor.",
+    icon: Cloud,
+    title: "Sincronização em Nuvem",
+    description: "Seus dados ficam salvos no Convex e sincronizados entre seus dispositivos.",
+  },
+  {
+    icon: QrCode,
+    title: "PIX & QR Code",
+    description: "Gere QR Code e copie a chave PIX direto do app para facilitar o pagamento.",
+  },
+  {
+    icon: BarChart3,
+    title: "Relatórios Financeiros",
+    description: "Visualize gráficos de economia, custos por categoria e impacto do compartilhamento.",
   },
 ];
 
@@ -61,7 +71,7 @@ export default function Landing() {
             {/* Logo / Badge */}
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-8">
               <span className="text-lg">💰</span>
-              <span className="text-sm font-medium text-primary">PWA • Sem cadastro necessário</span>
+              <span className="text-sm font-medium text-primary">PWA • Sincronizado em Nuvem</span>
             </div>
 
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-[1.1] mb-6">
@@ -136,7 +146,7 @@ export default function Landing() {
         >
           {[
             { value: "100%", label: "Grátis" },
-            { value: "Local", label: "Privado" },
+            { value: "☁️", label: "Nuvem" },
             { value: "PWA", label: "Instalável" },
           ].map((stat) => (
             <div key={stat.label} className="text-center py-4 rounded-xl bg-card/30 border border-border/40">

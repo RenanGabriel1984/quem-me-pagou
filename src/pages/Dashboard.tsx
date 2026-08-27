@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useStorage } from "@/hooks/use-storage";
 import type { Category } from "@/types/data";
+import { monthsSinceStart, totalPersonSavings } from "@/types/data";
 import {
   TrendingUp,
   TrendingDown,
@@ -13,6 +14,9 @@ import {
   AlertTriangle,
   Search,
   Filter,
+  Pencil,
+  Trash2,
+  MoreVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,11 +30,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useNavigate } from "react-router";
-import { api } from "../convex/_generated/api";
-import { useMutation, useAction } from "convex/react";
 import { AppHeader } from "@/components/AppHeader";
 import { PWAInstallBanner } from "@/components/PWAInstallBanner";
 import { DashboardSkeleton } from "@/components/Skeleton";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { PullToRefresh } from "@/components/PullToRefresh";
+import { Onboarding } from "@/components/Onboarding";
+import { toast } from "sonner";
+import type { Id } from "../convex/_generated/dataModel";
 
 const categoryLabels: Record<Category, string> = {
   video: "Vídeo",
@@ -61,6 +68,22 @@ function getDaysUntilDue(day: number): number {
   return Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+function sanitizePhone(phone: string): string {
+  return phone.replace(/\D/g, "").slice(0, 11);
+}
+
+function formatPhoneDisplay(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return phone;
+}
+
+// ── Add Subscription Dialog ─────────────────────────────────────────
 function AddSubscriptionDialog({
   open,
   onClose,
@@ -68,6 +91,7 @@ function AddSubscriptionDialog({
   open: boolean;
   onClose: () => void;
 }) {
+  const storage = useStorage();
   const [name, setName] = useState("");
   const [category, setCategory] = useState<Category>("video");
   const [totalMonthly, setTotalMonthly] = useState("");
@@ -87,16 +111,11 @@ function AddSubscriptionDialog({
     outro: "📦",
   };
 
-  const addSubscription = useMutation(api.subscriptions.create);
-
-  // Auto-calculate individual price from totalMonthly / participantCount
   const suggestedPrice =
     totalMonthly && participantCount && parseInt(participantCount) > 0
       ? (parseFloat(totalMonthly) / parseInt(participantCount)).toFixed(2)
       : null;
 
-  // When totalMonthly or participantCount changes, update suggested price
-  // unless user manually edited it
   const handleTotalMonthlyChange = (value: string) => {
     setTotalMonthly(value);
     if (!isManualPrice && participantCount && parseInt(participantCount) > 0) {
@@ -120,7 +139,7 @@ function AddSubscriptionDialog({
 
   const handleSubmit = async () => {
     if (!name || !totalMonthly) return;
-    await addSubscription({
+    await storage.addSubscription({
       name,
       category,
       icon: iconsByCategory[category],
@@ -137,6 +156,7 @@ function AddSubscriptionDialog({
     setStartDate(new Date().toISOString().slice(0, 10));
     setDueDay("15");
     onClose();
+    toast.success("Assinatura criada!");
   };
 
   if (!open) return null;
@@ -266,15 +286,6 @@ function AddSubscriptionDialog({
                   />
                 </div>
               </div>
-
-              {individualPrice && totalMonthly && parseFloat(individualPrice) > parseFloat(totalMonthly) && (
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
-                  <PiggyBank className="size-4 text-emerald-400 flex-shrink-0" />
-                  <p className="text-xs text-emerald-400 font-medium">
-                    Economia mensal do grupo: {formatCurrency(parseFloat(individualPrice) - parseFloat(totalMonthly))}
-                  </p>
-                </div>
-              )}
             </div>
 
             <div className="flex gap-3 mt-6">
@@ -296,22 +307,311 @@ function AddSubscriptionDialog({
   );
 }
 
+// ── Edit Subscription Dialog ────────────────────────────────────────
+function EditSubscriptionDialog({
+  open,
+  onClose,
+  subscription,
+}: {
+  open: boolean;
+  onClose: () => void;
+  subscription: any;
+}) {
+  const storage = useStorage();
+  const [name, setName] = useState(subscription?.name || "");
+  const [category, setCategory] = useState<Category>(subscription?.category || "video");
+  const [totalMonthly, setTotalMonthly] = useState(String(subscription?.totalMonthly || ""));
+  const [individualPrice, setIndividualPrice] = useState(String(subscription?.individualPrice || ""));
+  const [startDate, setStartDate] = useState(subscription?.startDate || "");
+  const [dueDay, setDueDay] = useState(String(subscription?.dueDay || "15"));
+
+  const iconsByCategory: Record<Category, string> = {
+    video: "🎬",
+    musica: "🎵",
+    software: "💻",
+    cursos: "📚",
+    outro: "📦",
+  };
+
+  const handleSubmit = async () => {
+    if (!name || !totalMonthly || !subscription) return;
+    await storage.editSubscription(subscription._id, {
+      name,
+      category,
+      icon: iconsByCategory[category],
+      totalMonthly: parseFloat(totalMonthly),
+      individualPrice: individualPrice ? parseFloat(individualPrice) : parseFloat(totalMonthly),
+      startDate,
+      dueDay: parseInt(dueDay),
+    });
+    onClose();
+    toast.success("Assinatura atualizada!");
+  };
+
+  if (!open || !subscription) return null;
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          onClick={onClose}
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 24 }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-card border border-border/60 rounded-2xl p-6 w-full max-w-md shadow-2xl safe-bottom max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold">Editar Assinatura</h2>
+              <Button variant="ghost" size="icon" className="size-11" onClick={onClose}>
+                <X className="size-4" />
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Nome</Label>
+                <Input
+                  placeholder="Ex: Netflix"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="h-12"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Categoria</Label>
+                <Select value={category} onValueChange={(v) => setCategory(v as Category)}>
+                  <SelectTrigger className="h-12">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(categoryLabels).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>
+                        {iconsByCategory[key as Category]} {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Valor Mensal do Grupo (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0,00"
+                  value={totalMonthly}
+                  onChange={(e) => setTotalMonthly(e.target.value)}
+                  className="h-12"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Preço Individual Est. (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0,00"
+                  value={individualPrice}
+                  onChange={(e) => setIndividualPrice(e.target.value)}
+                  className="h-12"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Dia do Vencimento</Label>
+                  <Select value={dueDay} onValueChange={setDueDay}>
+                    <SelectTrigger className="h-12">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                        <SelectItem key={d} value={String(d)}>
+                          Dia {d}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Data de Início</Label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="h-12"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <Button variant="outline" className="flex-1 h-12 active:scale-95" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 h-12 bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95 shadow-sm"
+                onClick={handleSubmit}
+                disabled={!name || !totalMonthly}
+              >
+                Salvar
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ── Edit Person Dialog ──────────────────────────────────────────────
+function EditPersonDialog({
+  open,
+  onClose,
+  person,
+  individualPrice,
+}: {
+  open: boolean;
+  onClose: () => void;
+  person: any;
+  individualPrice: number;
+}) {
+  const storage = useStorage();
+  const [name, setName] = useState(person?.name || "");
+  const [phone, setPhone] = useState(person?.phone?.replace(/\D/g, "") || "");
+  const [amount, setAmount] = useState(String(person?.amount || ""));
+
+  const handleSubmit = async () => {
+    if (!name || !phone || !amount || !person) return;
+    await storage.editPerson(person._id, {
+      name,
+      phone: sanitizePhone(phone),
+      amount: parseFloat(amount),
+    });
+    onClose();
+    toast.success("Pessoa atualizada!");
+  };
+
+  if (!open || !person) return null;
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          onClick={onClose}
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 24 }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-card border border-border/60 rounded-2xl p-6 w-full max-w-md shadow-2xl safe-bottom"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold">Editar Pessoa</h2>
+              <Button variant="ghost" size="icon" className="size-11" onClick={onClose}>
+                <X className="size-4" />
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Nome</Label>
+                <Input
+                  placeholder="Nome da pessoa"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="h-12"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Telefone WhatsApp</Label>
+                <Input
+                  type="tel"
+                  placeholder="11999887766"
+                  value={phone}
+                  onChange={(e) => setPhone(sanitizePhone(e.target.value))}
+                  className="h-12"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  DDD + número, sem espaço. Ex: 11999887766
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Valor da Cota (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0,00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="h-12"
+                />
+                {amount && individualPrice > 0 && (
+                  <p className="text-[11px] text-emerald-400 font-medium">
+                    Economia mensal: {formatCurrency(individualPrice - parseFloat(amount))}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <Button variant="outline" className="flex-1 h-12 active:scale-95" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 h-12 bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95 shadow-sm"
+                onClick={handleSubmit}
+                disabled={!name || !phone || !amount}
+              >
+                Salvar
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 type FilterType = "all" | "pending" | "paid";
 
 export default function Dashboard() {
   const storage = useStorage();
   const navigate = useNavigate();
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingSub, setEditingSub] = useState<any>(null);
+  const [deletingSub, setDeletingSub] = useState<any>(null);
+  const [editingPerson, setEditingPerson] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
-  const seedAll = useAction(api.seed.seedAll);
+  const [contextMenuSubId, setContextMenuSubId] = useState<string | null>(null);
+
+  const handlePullRefresh = async () => {
+    // Simulate refresh delay (Convex queries are reactive and auto-update)
+    await new Promise((r) => setTimeout(r, 800));
+  };
 
   const isLoading = storage.subscriptions === undefined;
-  const shouldSeed = !isLoading && storage.subscriptions.length === 0;
 
   // Filter subscriptions
   const filteredSubscriptions = (storage.subscriptionsWithPeople || []).filter((sub) => {
-    // Search filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const nameMatch = sub.name.toLowerCase().includes(q);
@@ -321,7 +621,6 @@ export default function Dashboard() {
       if (!nameMatch && !personMatch) return false;
     }
 
-    // Status filter
     if (activeFilter === "pending") {
       const hasPending = sub.people?.some((p: any) => !p.paidThisMonth);
       if (!hasPending) return false;
@@ -339,12 +638,19 @@ export default function Dashboard() {
     { key: "paid", label: "100% Pagos" },
   ];
 
+  const handleDeleteSub = async () => {
+    if (!deletingSub) return;
+    await storage.removeSubscription(deletingSub._id);
+    setDeletingSub(null);
+    toast.success("Assinatura removida!");
+  };
+
   return (
     <div className="min-h-screen bg-background">
+      <Onboarding />
       <AppHeader />
 
       <div className="max-w-2xl mx-auto px-4 pb-24 safe-bottom">
-        {/* PWA Install Banner */}
         <div className="pt-4">
           <PWAInstallBanner />
         </div>
@@ -354,7 +660,7 @@ export default function Dashboard() {
             <DashboardSkeleton />
           </div>
         ) : (
-          <>
+          <PullToRefresh onRefresh={handlePullRefresh}>
             {/* Savings Highlight Card */}
             {storage.totalAccumulatedSavings > 0 && (
               <motion.div
@@ -539,7 +845,32 @@ export default function Dashboard() {
                               </div>
                             </div>
 
-                            <div className="flex flex-col items-end gap-1.5 flex-shrink-0 ml-3">
+                            <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
+                              {/* Edit button */}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-9 text-muted-foreground hover:text-foreground rounded-lg active:scale-90"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingSub(sub);
+                                }}
+                              >
+                                <Pencil className="size-3.5" />
+                              </Button>
+                              {/* Delete button */}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-9 text-muted-foreground hover:text-destructive rounded-lg active:scale-90"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeletingSub(sub);
+                                }}
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                              {/* Status badge */}
                               <div
                                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${
                                   pendingPeople > 0
@@ -556,9 +887,6 @@ export default function Dashboard() {
                                   ? `${pendingPeople} pendente${pendingPeople > 1 ? "s" : ""}`
                                   : "Todos pagaram"}
                               </div>
-                              <span className="text-[11px] text-muted-foreground">
-                                {paidCount}/{totalPeople}
-                              </span>
                             </div>
                           </div>
                         </CardContent>
@@ -579,7 +907,7 @@ export default function Dashboard() {
               </div>
             )}
 
-            {storage.subscriptions.length === 0 && !shouldSeed && (
+            {storage.subscriptions.length === 0 && (
               <div className="text-center py-16">
                 <p className="text-4xl mb-4">📭</p>
                 <p className="text-muted-foreground font-medium">Nenhuma assinatura ainda</p>
@@ -588,13 +916,37 @@ export default function Dashboard() {
                 </p>
               </div>
             )}
-          </>
+          </PullToRefresh>
         )}
       </div>
 
       <AddSubscriptionDialog
         open={showAddDialog}
         onClose={() => setShowAddDialog(false)}
+      />
+
+      <EditSubscriptionDialog
+        open={!!editingSub}
+        onClose={() => setEditingSub(null)}
+        subscription={editingSub}
+      />
+
+      <EditPersonDialog
+        open={!!editingPerson}
+        onClose={() => setEditingPerson(null)}
+        person={editingPerson}
+        individualPrice={editingPerson?.individualPrice || 0}
+      />
+
+      <ConfirmDialog
+        open={!!deletingSub}
+        onOpenChange={(open) => !open && setDeletingSub(null)}
+        title="Excluir assinatura"
+        description={`Tem certeza que deseja excluir "${deletingSub?.name}"? Todas as pessoas vinculadas também serão removidas. Esta ação não pode ser desfeita.`}
+        confirmLabel="Excluir"
+        cancelLabel="Manter"
+        variant="destructive"
+        onConfirm={handleDeleteSub}
       />
     </div>
   );

@@ -20,18 +20,18 @@ import {
   FileText,
   StickyNote,
   Share2,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { useMutation } from "convex/react";
-import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { AppHeader } from "@/components/AppHeader";
 import { DetailSkeleton } from "@/components/Skeleton";
 import { PixCopyButton, PixQRCode } from "@/components/PixDisplay";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const categoryLabels: Record<Category, string> = {
   video: "Vídeo",
@@ -71,6 +71,138 @@ function getDueDate(day: number): string {
   return due.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" });
 }
 
+function sanitizePhone(phone: string): string {
+  return phone.replace(/\D/g, "").slice(0, 11);
+}
+
+function formatPhoneDisplay(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return phone;
+}
+
+// ── Edit Person Dialog ──────────────────────────────────────────────
+function EditPersonDialog({
+  open,
+  onClose,
+  person,
+  individualPrice,
+}: {
+  open: boolean;
+  onClose: () => void;
+  person: any;
+  individualPrice: number;
+}) {
+  const storage = useStorage();
+  const [name, setName] = useState(person?.name || "");
+  const [phone, setPhone] = useState(person?.phone?.replace(/\D/g, "") || "");
+  const [amount, setAmount] = useState(String(person?.amount || ""));
+
+  const handleSubmit = async () => {
+    if (!name || !phone || !amount || !person) return;
+    await storage.editPerson(person._id, {
+      name,
+      phone: sanitizePhone(phone),
+      amount: parseFloat(amount),
+    });
+    onClose();
+    toast.success("Pessoa atualizada!");
+  };
+
+  if (!open || !person) return null;
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          onClick={onClose}
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 24 }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-card border border-border/60 rounded-2xl p-6 w-full max-w-md shadow-2xl safe-bottom"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold">Editar Pessoa</h2>
+              <Button variant="ghost" size="icon" className="size-11" onClick={onClose}>
+                <X className="size-4" />
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Nome</Label>
+                <Input
+                  placeholder="Nome da pessoa"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="h-12"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Telefone WhatsApp</Label>
+                <Input
+                  type="tel"
+                  placeholder="11999887766"
+                  value={phone}
+                  onChange={(e) => setPhone(sanitizePhone(e.target.value))}
+                  className="h-12"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  DDD + número, sem espaço. Ex: 11999887766
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Valor da Cota (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0,00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="h-12"
+                />
+                {amount && individualPrice > 0 && (
+                  <p className="text-[11px] text-emerald-400 font-medium">
+                    Economia mensal: {formatCurrency(individualPrice - parseFloat(amount))}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <Button variant="outline" className="flex-1 h-12 active:scale-95" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 h-12 bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95 shadow-sm"
+                onClick={handleSubmit}
+                disabled={!name || !phone || !amount}
+              >
+                Salvar
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 export default function SubscriptionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -81,10 +213,11 @@ export default function SubscriptionDetail() {
   const [personPhone, setPersonPhone] = useState("");
   const [personAmount, setPersonAmount] = useState("");
   const [proofNoteInputs, setProofNoteInputs] = useState<Record<string, string>>({});
+  const [editingPerson, setEditingPerson] = useState<any>(null);
+  const [deletingPerson, setDeletingPerson] = useState<any>(null);
 
   const isLoading = storage.subscriptionsWithPeople === undefined;
 
-  // Find the subscription in the data
   const subscription = (storage.subscriptionsWithPeople || []).find((s) => s._id === id);
 
   if (isLoading) {
@@ -120,12 +253,10 @@ export default function SubscriptionDetail() {
     .filter((p: any) => p.paidThisMonth)
     .reduce((sum: number, p: any) => sum + p.amount, 0);
 
-  // Debt calculation: amount * unpaidMonths for each pending person
   const pendingDebt = subscription.people
     .filter((p: any) => !p.paidThisMonth)
     .reduce((sum: number, p: any) => sum + p.amount * (p.unpaidMonths || 0), 0);
 
-  // ── Savings calculations ──────────────────────────────────────────
   const groupTotalSavings = subscription.people.reduce(
     (sum: number, p: any) => sum + totalPersonSavings(subscription.individualPrice, p.amount, p.monthsPaid),
     0,
@@ -136,7 +267,7 @@ export default function SubscriptionDetail() {
     if (!personName || !personPhone || !personAmount) return;
     await storage.addPerson(subscription._id, {
       name: personName,
-      phone: personPhone.replace(/\D/g, ""),
+      phone: sanitizePhone(personPhone),
       amount: parseFloat(personAmount),
     });
     setPersonName("");
@@ -156,6 +287,13 @@ export default function SubscriptionDetail() {
     );
     const totalDue = person.amount * (person.unpaidMonths || 0);
     const startLabel = formatStartMonth(subscription.startDate);
+
+    // Sanitize phone for WhatsApp URL
+    const cleanPhone = sanitizePhone(person.phone);
+    if (cleanPhone.length < 10) {
+      toast.error("Número de telefone inválido");
+      return;
+    }
 
     const lines: string[] = [
       `Fala ${person.name}! 🍿`,
@@ -183,15 +321,15 @@ export default function SubscriptionDetail() {
     }
 
     const message = lines.join("\n");
-    const url = `https://wa.me/55${person.phone}?text=${encodeURIComponent(message)}`;
+    const url = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
   };
 
-  const handleDeletePerson = async (personId: Id<"people">) => {
-    if (confirm("Remover esta pessoa?")) {
-      await storage.removePerson(personId);
-      toast.success("Pessoa removida");
-    }
+  const handleDeletePerson = async () => {
+    if (!deletingPerson) return;
+    await storage.removePerson(deletingPerson._id);
+    setDeletingPerson(null);
+    toast.success("Pessoa removida");
   };
 
   return (
@@ -300,7 +438,6 @@ export default function SubscriptionDetail() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                  {/* Individual price */}
                   <div className="flex-1 text-center">
                     <p className="text-[10px] text-muted-foreground font-medium uppercase">Individual</p>
                     <p className="text-lg font-bold text-muted-foreground mt-0.5 line-through decoration-destructive/40">
@@ -311,7 +448,6 @@ export default function SubscriptionDetail() {
 
                   <TrendingDown className="size-5 text-emerald-400 flex-shrink-0" />
 
-                  {/* Group price */}
                   <div className="flex-1 text-center">
                     <p className="text-[10px] text-emerald-400 font-medium uppercase">No Grupo</p>
                     <p className="text-lg font-bold text-emerald-400 mt-0.5">
@@ -322,7 +458,6 @@ export default function SubscriptionDetail() {
 
                   <div className="w-px h-10 bg-emerald-500/20 flex-shrink-0" />
 
-                  {/* Total saved */}
                   <div className="flex-1 text-center">
                     <p className="text-[10px] text-emerald-400 font-medium uppercase">Economizado</p>
                     <p className="text-lg font-bold text-emerald-400 mt-0.5">
@@ -444,7 +579,7 @@ export default function SubscriptionDetail() {
                             {formatCurrency(person.amount)}/mês
                             {person.phone && (
                               <span className="ml-2 text-muted-foreground/60">
-                                {person.phone.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3")}
+                                {formatPhoneDisplay(person.phone)}
                               </span>
                             )}
                             {person.monthsPaid > 0 && (
@@ -461,7 +596,16 @@ export default function SubscriptionDetail() {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-9 text-muted-foreground hover:text-foreground rounded-lg active:scale-90"
+                            onClick={() => setEditingPerson(person)}
+                          >
+                            <Pencil className="size-3.5" />
+                          </Button>
+
                           <Button
                             variant={person.paidThisMonth ? "outline" : "default"}
                             size="sm"
@@ -472,7 +616,6 @@ export default function SubscriptionDetail() {
                             }`}
                             onClick={() => {
                               if (!person.paidThisMonth) {
-                                // Going to paid - ask for optional proof note
                                 const note = proofNoteInputs[person._id] || "";
                                 storage.togglePersonStatus(subscription._id, person._id, true, note || undefined);
                                 setProofNoteInputs((prev) => { const next = { ...prev }; delete next[person._id]; return next; });
@@ -500,15 +643,15 @@ export default function SubscriptionDetail() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="size-11 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl active:scale-95"
-                            onClick={() => handleDeletePerson(person._id)}
+                            className="size-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg active:scale-90"
+                            onClick={() => setDeletingPerson(person)}
                           >
-                            <Trash2 className="size-4" />
+                            <Trash2 className="size-3.5" />
                           </Button>
                         </div>
                       </div>
 
-                      {/* Proof note input (shown when about to mark as paid) */}
+                      {/* Proof note input */}
                       {!person.paidThisMonth && (
                         <div className="mt-2.5 pt-2.5 border-t border-border/30">
                           <div className="flex items-center gap-2">
@@ -588,7 +731,7 @@ export default function SubscriptionDetail() {
                       placeholder="11999887766"
                       className="pl-9 h-12"
                       value={personPhone}
-                      onChange={(e) => setPersonPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                      onChange={(e) => setPersonPhone(sanitizePhone(e.target.value))}
                     />
                   </div>
                   <p className="text-[11px] text-muted-foreground">
@@ -633,6 +776,26 @@ export default function SubscriptionDetail() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Edit Person Dialog */}
+      <EditPersonDialog
+        open={!!editingPerson}
+        onClose={() => setEditingPerson(null)}
+        person={editingPerson}
+        individualPrice={subscription.individualPrice}
+      />
+
+      {/* Delete Person Confirmation */}
+      <ConfirmDialog
+        open={!!deletingPerson}
+        onOpenChange={(open) => !open && setDeletingPerson(null)}
+        title="Remover pessoa"
+        description={`Tem certeza que deseja remover "${deletingPerson?.name}"? Esta ação não pode ser desfeita.`}
+        confirmLabel="Remover"
+        cancelLabel="Manter"
+        variant="destructive"
+        onConfirm={handleDeletePerson}
+      />
     </div>
   );
 }

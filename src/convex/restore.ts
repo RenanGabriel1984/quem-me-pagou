@@ -1,5 +1,6 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { requireUserId } from "./helpers";
 
 /**
  * Restore all data from a backup. Clears existing data first.
@@ -38,7 +39,7 @@ export const restoreAll = mutation({
     }),
   },
   handler: async (ctx, args) => {
-    const userId = "default-user";
+    const userId = await requireUserId(ctx);
 
     // Delete all existing data
     const existingSubs = await ctx.db

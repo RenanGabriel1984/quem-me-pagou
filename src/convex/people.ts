@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { getUserId, requireUserId } from "./helpers";
 
 export const listBySubscription = query({
   args: { subscriptionId: v.id("subscriptions") },
@@ -7,6 +8,18 @@ export const listBySubscription = query({
     return await ctx.db
       .query("people")
       .withIndex("by_subscription", (q: any) => q.eq("subscriptionId", args.subscriptionId))
+      .collect();
+  },
+});
+
+export const listAll = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getUserId(ctx);
+    if (!userId) return [];
+    return await ctx.db
+      .query("people")
+      .withIndex("by_user", (q: any) => q.eq("userId", userId))
       .collect();
   },
 });
@@ -31,7 +44,7 @@ export const create = mutation({
     proofNote: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = "default-user";
+    const userId = await requireUserId(ctx);
     return await ctx.db.insert("people", {
       userId,
       subscriptionId: args.subscriptionId,
@@ -56,11 +69,9 @@ export const updateStatus = mutation({
   handler: async (ctx, args) => {
     const person = await ctx.db.get(args.id);
     if (!person) throw new Error("Person not found");
-    
-    const now = Date.now();
+
     const patchData: Record<string, any> = {
       paidThisMonth: args.paid,
-      // Only count transitions from unpaid → paid
       monthsPaid: args.paid && !person.paidThisMonth
         ? person.monthsPaid + 1
         : person.monthsPaid,
@@ -68,7 +79,7 @@ export const updateStatus = mutation({
     };
 
     if (args.paid) {
-      patchData.lastPaidAt = now;
+      patchData.lastPaidAt = Date.now();
       if (args.proofNote !== undefined) {
         patchData.proofNote = args.proofNote;
       }
@@ -105,22 +116,20 @@ export const remove = mutation({
 export const resetMonthlyPayments = mutation({
   args: {},
   handler: async (ctx) => {
-    const userId = "default-user";
+    const userId = await requireUserId(ctx);
     const allPeople = await ctx.db
       .query("people")
       .withIndex("by_user", (q: any) => q.eq("userId", userId))
       .collect();
-    
+
     for (const person of allPeople) {
       if (person.paidThisMonth) {
-        // Was paid → reset to unpaid with unpaidMonths = 1
-        await ctx.db.patch(person._id, { 
+        await ctx.db.patch(person._id, {
           paidThisMonth: false,
           unpaidMonths: 1,
         });
       } else {
-        // Was unpaid → increment unpaidMonths
-        await ctx.db.patch(person._id, { 
+        await ctx.db.patch(person._id, {
           paidThisMonth: false,
           unpaidMonths: (person.unpaidMonths || 0) + 1,
         });

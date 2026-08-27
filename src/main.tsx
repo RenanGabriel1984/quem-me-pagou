@@ -1,7 +1,7 @@
 import '@vly-ai/integrations';
 import { Toaster } from "@/components/ui/sonner";
 import { RequireAuth } from "@/components/RequireAuth";
-import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
+import { VlyToolbar } from '../vly-toolbar-readonly.tsx';
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
 import React, { StrictMode, useEffect, lazy, Suspense } from "react";
@@ -88,8 +88,6 @@ class RootErrorBoundary extends React.Component<
 const CONVEX_URL = import.meta.env.VITE_CONVEX_URL || "https://brainy-mole-505.convex.cloud";
 const convex = new ConvexReactClient(CONVEX_URL);
 
-
-
 function RouteSyncer() {
   const location = useLocation();
   useEffect(() => {
@@ -113,7 +111,6 @@ function RouteSyncer() {
   return null;
 }
 
-
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <RootErrorBoundary>
@@ -126,16 +123,28 @@ createRoot(document.getElementById("root")!).render(
           <RouteSyncer />
           <Suspense fallback={<RouteLoading />}>
             <Routes>
+              {/* Public routes */}
               <Route path="/" element={<Landing />} />
               <Route
                 path="/auth"
                 element={<AuthPage redirectAfterAuth="/dashboard" />}
               />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/subscription/:id" element={<SubscriptionDetail />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/reports" element={<Reports />} />
               <Route path="/view/:id" element={<PublicView />} />
+
+              {/* Protected routes */}
+              <Route path="/dashboard" element={
+                <RequireAuth><Dashboard /></RequireAuth>
+              } />
+              <Route path="/subscription/:id" element={
+                <RequireAuth><SubscriptionDetail /></RequireAuth>
+              } />
+              <Route path="/settings" element={
+                <RequireAuth><Settings /></RequireAuth>
+              } />
+              <Route path="/reports" element={
+                <RequireAuth><Reports /></RequireAuth>
+              } />
+
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>

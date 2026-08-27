@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useStorage } from "@/hooks/use-storage";
 import type { Category } from "@/types/data";
@@ -15,6 +16,7 @@ import {
   Pie,
 } from "recharts";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   TrendingUp,
   TrendingDown,
@@ -22,9 +24,11 @@ import {
   PieChart as PieChartIcon,
   BarChart3,
   DollarSign,
+  Download,
 } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { DashboardSkeleton } from "@/components/Skeleton";
+import { toast } from "sonner";
 
 const categoryLabels: Record<Category, string> = {
   video: "Vídeo",
@@ -46,9 +50,44 @@ function formatCurrency(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+type Period = "month" | "quarter" | "year" | "all";
+
+const periodLabels: Record<Period, string> = {
+  month: "Este Mês",
+  quarter: "Este Trimestre",
+  year: "Este Ano",
+  all: "Todos",
+};
+
 export default function Reports() {
   const storage = useStorage();
+  const [activePeriod, setActivePeriod] = useState<Period>("all");
   const isLoading = storage.subscriptions === undefined;
+
+  // Filter by period based on dueDay and lastPaymentDate
+  const filterByPeriod = (sub: any) => {
+    if (activePeriod === "all") return true;
+
+    const now = new Date();
+    const startMonth = sub.startDate ? new Date(sub.startDate) : new Date();
+
+    switch (activePeriod) {
+      case "month": {
+        return now.getMonth() === startMonth.getMonth() &&
+          now.getFullYear() === startMonth.getFullYear() ||
+          (now.getMonth() + 1) % 12 === ((startMonth.getMonth()) % 12);
+      }
+      case "quarter": {
+        const q = Math.floor(now.getMonth() / 3);
+        const subQ = Math.floor(startMonth.getMonth() / 3);
+        return q === subQ && now.getFullYear() === startMonth.getFullYear();
+      }
+      case "year":
+        return now.getFullYear() === startMonth.getFullYear();
+      default:
+        return true;
+    }
+  };
 
   if (isLoading) {
     return (
@@ -61,7 +100,7 @@ export default function Reports() {
     );
   }
 
-  const subs = storage.subscriptionsWithPeople || [];
+  const subs = (storage.subscriptionsWithPeople || []).filter(filterByPeriod);
 
   // ── Category distribution data ────────────────────────────────────
   const categoryData = subs.reduce(
@@ -116,15 +155,78 @@ export default function Reports() {
   const totalGross = totalIndividualAll;
   const adminPays = totalMonthlyGroup;
 
+  // ── CSV Export ────────────────────────────────────────────────────
+  const handleExportCSV = () => {
+    const headers = ["Assinatura", "Categoria", "Total Mensal", "Preço Individual", "Pessoas", "Pago", "Pendente", "Economia Mensal"];
+    const rows = subs.map((sub) => {
+      const paid = sub.people.filter((p: any) => p.paidThisMonth).length;
+      const pending = sub.people.length - paid;
+      const econ = sub.people.reduce(
+        (sum: number, p: any) => sum + Math.max(0, sub.individualPrice - p.amount),
+        0,
+      );
+      return [
+        sub.name,
+        categoryLabels[sub.category],
+        sub.totalMonthly.toFixed(2),
+        sub.individualPrice.toFixed(2),
+        sub.people.length,
+        paid,
+        pending,
+        econ.toFixed(2),
+      ].join(",");
+    });
+
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `quem-me-pagou-relatorio-${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Relatório exportado!");
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <AppHeader />
 
       <div className="max-w-2xl mx-auto px-4 pb-24 safe-bottom">
-        <header className="pt-4 pb-2">
-          <h1 className="text-xl font-bold">Relatórios</h1>
-          <p className="text-sm text-muted-foreground">Visão geral das finanças do grupo</p>
+        <header className="pt-4 pb-2 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold">Relatórios</h1>
+            <p className="text-sm text-muted-foreground">Visão geral das finanças do grupo</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 h-10 rounded-xl text-xs"
+            onClick={handleExportCSV}
+          >
+            <Download className="size-3.5" />
+            CSV
+          </Button>
         </header>
+
+        {/* Period Filter */}
+        <div className="flex items-center gap-2 mb-5 mt-3 overflow-x-auto pb-1">
+          {(Object.keys(periodLabels) as Period[]).map((p) => (
+            <Button
+              key={p}
+              variant={activePeriod === p ? "default" : "outline"}
+              size="sm"
+              className={`h-10 rounded-xl text-xs flex-shrink-0 px-4 transition-all active:scale-95 ${
+                activePeriod === p
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "bg-card/60 border-border/40 text-muted-foreground"
+              }`}
+              onClick={() => setActivePeriod(p)}
+            >
+              {periodLabels[p]}
+            </Button>
+          ))}
+        </div>
 
         {/* ── Cost Comparison Card ──────────────────────────────────── */}
         <motion.div

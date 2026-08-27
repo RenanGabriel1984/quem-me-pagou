@@ -1,23 +1,23 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { getUserId, requireUserId } from "./helpers";
 
 export const get = query({
   args: {},
   handler: async (ctx) => {
-    const userId = "default-user";
+    const userId = await getUserId(ctx);
+    if (!userId) {
+      return { pixKey: "", ownerName: "" };
+    }
     const settings = await ctx.db
       .query("settings")
       .withIndex("by_user", (q: any) => q.eq("userId", userId))
       .first();
-    
-    // Return default settings if none exist
+
     if (!settings) {
-      return {
-        pixKey: "",
-        ownerName: "",
-      };
+      return { pixKey: "", ownerName: "" };
     }
-    
+
     return {
       pixKey: settings.pixKey,
       ownerName: settings.ownerName,
@@ -31,12 +31,12 @@ export const upsert = mutation({
     ownerName: v.string(),
   },
   handler: async (ctx, args) => {
-    const userId = "default-user";
+    const userId = await requireUserId(ctx);
     const existing = await ctx.db
       .query("settings")
       .withIndex("by_user", (q: any) => q.eq("userId", userId))
       .first();
-    
+
     if (existing) {
       await ctx.db.patch(existing._id, {
         pixKey: args.pixKey,

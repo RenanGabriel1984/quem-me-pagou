@@ -11,6 +11,7 @@
 import type * as auth from "../auth.js";
 import type * as auth_emailOtp from "../auth/emailOtp.js";
 import type * as github from "../github.js";
+import type * as helpers from "../helpers.js";
 import type * as http from "../http.js";
 import type * as people from "../people.js";
 import type * as restore from "../restore.js";
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   "auth/emailOtp": typeof auth_emailOtp;
   github: typeof github;
+  helpers: typeof helpers;
   http: typeof http;
   people: typeof people;
   restore: typeof restore;
