@@ -223,11 +223,11 @@ function AddSubscriptionDialog({
             </div>
 
             <div className="flex gap-3 mt-6">
-              <Button variant="outline" className="flex-1 h-12" onClick={onClose}>
+              <Button variant="outline" className="flex-1 h-12 active:scale-95" onClick={onClose}>
                 Cancelar
               </Button>
               <Button
-                className="flex-1 h-12 bg-primary text-primary-foreground hover:bg-primary/90"
+                className="flex-1 h-12 bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95 shadow-sm"
                 onClick={handleSubmit}
                 disabled={!name || !totalMonthly}
               >
@@ -385,10 +385,10 @@ export default function Dashboard() {
                   key={f.key}
                   variant={activeFilter === f.key ? "default" : "outline"}
                   size="sm"
-                  className={`h-9 rounded-lg text-xs flex-shrink-0 px-3 ${
+                  className={`h-11 rounded-xl text-xs flex-shrink-0 px-4 transition-all active:scale-95 ${
                     activeFilter === f.key
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-card/60 border-border/40 text-muted-foreground"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-card/60 border-border/40 text-muted-foreground hover:bg-surface-hover"
                   }`}
                   onClick={() => setActiveFilter(f.key)}
                 >
@@ -409,7 +409,7 @@ export default function Dashboard() {
               </h2>
               <Button
                 size="sm"
-                className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 h-11 rounded-xl text-sm"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 h-11 rounded-xl text-sm active:scale-95 shadow-sm"
                 onClick={() => setShowAddDialog(true)}
               >
                 <Plus className="size-4" />
@@ -443,7 +443,7 @@ export default function Dashboard() {
                       transition={{ delay: index * 0.05 }}
                     >
                       <Card
-                        className="bg-card/60 border-border/40 shadow-none hover:border-primary/20 transition-all cursor-pointer active:scale-[0.99]"
+                        className="bg-card/60 border-border/40 shadow-none hover:border-primary/20 hover:bg-surface-hover/40 transition-all duration-200 cursor-pointer active:scale-[0.98] active:shadow-sm"
                         onClick={() => navigate(`/subscription/${sub._id}`)}
                       >
                         <CardContent className="px-5 py-4">

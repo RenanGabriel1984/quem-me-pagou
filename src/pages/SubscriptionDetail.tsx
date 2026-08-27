@@ -200,7 +200,7 @@ export default function SubscriptionDetail() {
           <Button
             variant="ghost"
             size="icon"
-            className="size-11 -ml-2"
+            className="size-11 -ml-2 active:scale-90"
             onClick={() => navigate("/dashboard")}
           >
             <ArrowLeft className="size-5" />
@@ -438,10 +438,10 @@ export default function SubscriptionDetail() {
                           <Button
                             variant={person.paidThisMonth ? "outline" : "default"}
                             size="sm"
-                            className={`h-11 px-3 text-xs gap-1.5 rounded-xl min-w-[44px] transition-all duration-300 ${
+                            className={`h-11 px-3 text-xs gap-1.5 rounded-xl min-w-[44px] transition-all duration-200 active:scale-95 ${
                               person.paidThisMonth
                                 ? "border-[var(--paid)]/30 text-[var(--paid)] hover:bg-[var(--paid)]/10"
-                                : "bg-primary text-primary-foreground hover:bg-primary/90"
+                                : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
                             }`}
                             onClick={() =>
                               storage.togglePersonStatus(
@@ -459,7 +459,7 @@ export default function SubscriptionDetail() {
                             <Button
                               variant="outline"
                               size="icon"
-                              className="size-11 border-green-500/30 text-green-400 hover:bg-green-500/10 rounded-xl"
+                              className="size-11 border-green-500/30 text-green-400 hover:bg-green-500/10 rounded-xl active:scale-95"
                               title="Enviar cobrança via WhatsApp"
                               onClick={() => handleWhatsApp(person)}
                             >
@@ -470,7 +470,7 @@ export default function SubscriptionDetail() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="size-11 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl"
+                            className="size-11 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl active:scale-95"
                             onClick={() => handleDeletePerson(person._id)}
                           >
                             <Trash2 className="size-4" />
@@ -573,11 +573,11 @@ export default function SubscriptionDetail() {
               </div>
 
               <div className="flex gap-3 mt-6">
-                <Button variant="outline" className="flex-1 h-12" onClick={() => setShowAddPerson(false)}>
+                <Button variant="outline" className="flex-1 h-12 active:scale-95" onClick={() => setShowAddPerson(false)}>
                   Cancelar
                 </Button>
                 <Button
-                  className="flex-1 h-12 bg-primary text-primary-foreground hover:bg-primary/90"
+                  className="flex-1 h-12 bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95 shadow-sm"
                   onClick={handleAddPerson}
                   disabled={!personName || !personPhone || !personAmount}
                 >

@@ -178,31 +178,19 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* ── Skeleton loader shimmer ─────────────────────────────── */
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+/* ── Skeleton loader pulse ───────────────────────────────── */
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
 }
 .skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--surface) 25%,
-    var(--surface-hover) 37%,
-    var(--surface) 63%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
+  background-color: var(--surface);
   border-radius: 0.5rem;
+  animation: skeletonPulse 1.8s ease-in-out infinite;
 }
 
 .dark .skeleton {
-  background: linear-gradient(
-    90deg,
-    rgba(255,255,255,0.04) 25%,
-    rgba(255,255,255,0.08) 37%,
-    rgba(255,255,255,0.04) 63%
-  );
-  background-size: 200% 100%;
+  background-color: rgba(255,255,255,0.06);
 }
 
 /* ── Payment toggle animation ────────────────────────────── */
@@ -239,6 +227,22 @@ button[class*='size-8'] {
 button[class*='size-9'] {
   min-height: 36px;
   min-width: 36px;
+}
+
+/* ── Touch-friendly focus-visible states ─────────────────── */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* ── Touch feedback on buttons ───────────────────────────── */
+button {
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.15s ease;
+}
+button:active:not([disabled]) {
+  transform: scale(0.97);
 }
 
 /* ── QR code container ───────────────────────────────────── */
