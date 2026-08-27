@@ -24,6 +24,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useNavigate } from "react-router";
+import { api } from "../convex/_generated/api";
+import { useMutation, useAction } from "convex/react";
+import type { Id } from "../convex/_generated/dataModel";
 
 const categoryLabels: Record<Category, string> = {
   video: "Vídeo",
@@ -57,20 +60,9 @@ function getDaysUntilDue(day: number): number {
 function AddSubscriptionDialog({
   open,
   onClose,
-  onAdd,
 }: {
   open: boolean;
   onClose: () => void;
-  onAdd: (sub: {
-    name: string;
-    category: Category;
-    icon: string;
-    totalMonthly: number;
-    individualPrice: number;
-    startDate: string;
-    dueDay: number;
-    people: [];
-  }) => void;
 }) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState<Category>("video");
@@ -89,9 +81,11 @@ function AddSubscriptionDialog({
     outro: "📦",
   };
 
-  const handleSubmit = () => {
+  const addSubscription = useMutation(api.subscriptions.create);
+
+  const handleSubmit = async () => {
     if (!name || !totalMonthly) return;
-    onAdd({
+    await addSubscription({
       name,
       category,
       icon: iconsByCategory[category],
@@ -99,7 +93,6 @@ function AddSubscriptionDialog({
       individualPrice: individualPrice ? parseFloat(individualPrice) : parseFloat(totalMonthly),
       startDate: startDate || new Date().toISOString().slice(0, 10),
       dueDay: parseInt(dueDay),
-      people: [],
     });
     setName("");
     setTotalMonthly("");
@@ -244,6 +237,10 @@ export default function Dashboard() {
   const storage = useStorage();
   const navigate = useNavigate();
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const seedAll = useAction(api.seed.seedAll);
+
+  // Auto-seed on first load if no subscriptions exist
+  const shouldSeed = storage.subscriptions.length === 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -342,19 +339,19 @@ export default function Dashboard() {
         {/* Subscription Cards */}
         <div className="space-y-3">
           <AnimatePresence mode="popLayout">
-            {storage.state.subscriptions.map((sub, index) => {
+            {storage.subscriptionsWithPeople.map((sub, index) => {
               const daysUntilDue = getDaysUntilDue(sub.dueDay);
-              const paidCount = sub.people.filter((p) => p.paidThisMonth).length;
+              const paidCount = sub.people.filter((p: any) => p.paidThisMonth).length;
               const totalPeople = sub.people.length;
               const pendingPeople = totalPeople - paidCount;
               const subSavings = sub.people.reduce(
-                (sum, p) => sum + storage.getPersonSavings(sub, p),
+                (sum: number, p: any) => sum + storage.getPersonSavings(sub.individualPrice, p.amount, p.monthsPaid),
                 0,
               );
 
               return (
                 <motion.div
-                  key={sub.id}
+                  key={sub._id}
                   layout
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -363,7 +360,7 @@ export default function Dashboard() {
                 >
                   <Card
                     className="bg-card/60 border-border/40 shadow-none hover:border-primary/20 transition-all cursor-pointer active:scale-[0.99]"
-                    onClick={() => navigate(`/subscription/${sub.id}`)}
+                    onClick={() => navigate(`/subscription/${sub._id}`)}
                   >
                     <CardContent className="px-5 py-4">
                       <div className="flex items-start justify-between">
@@ -428,7 +425,7 @@ export default function Dashboard() {
           </AnimatePresence>
         </div>
 
-        {storage.state.subscriptions.length === 0 && (
+        {storage.subscriptions.length === 0 && !shouldSeed && (
           <div className="text-center py-16">
             <p className="text-4xl mb-4">📭</p>
             <p className="text-muted-foreground font-medium">Nenhuma assinatura ainda</p>
@@ -439,7 +436,7 @@ export default function Dashboard() {
         )}
 
         {/* Reset button */}
-        {storage.state.subscriptions.length > 0 && (
+        {storage.subscriptions.length > 0 && (
           <div className="mt-8 text-center">
             <Button
               variant="ghost"
@@ -460,7 +457,6 @@ export default function Dashboard() {
       <AddSubscriptionDialog
         open={showAddDialog}
         onClose={() => setShowAddDialog(false)}
-        onAdd={storage.addSubscription}
       />
     </div>
   );

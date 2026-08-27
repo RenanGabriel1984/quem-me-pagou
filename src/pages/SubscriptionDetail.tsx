@@ -22,6 +22,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
+import type { Id } from "../convex/_generated/dataModel";
 
 const categoryLabels: Record<Category, string> = {
   video: "Vídeo",
@@ -71,7 +74,8 @@ export default function SubscriptionDetail() {
   const [personPhone, setPersonPhone] = useState("");
   const [personAmount, setPersonAmount] = useState("");
 
-  const subscription = storage.state.subscriptions.find((s) => s.id === id);
+  // Find the subscription in the data
+  const subscription = storage.subscriptionsWithPeople.find((s) => s._id === id);
 
   if (!subscription) {
     return (
@@ -88,30 +92,30 @@ export default function SubscriptionDetail() {
   }
 
   const daysUntilDue = getDaysUntilDue(subscription.dueDay);
-  const paidCount = subscription.people.filter((p) => p.paidThisMonth).length;
+  const paidCount = subscription.people.filter((p: any) => p.paidThisMonth).length;
   const totalPeople = subscription.people.length;
   const pendingPeople = totalPeople - paidCount;
   const paidAmount = subscription.people
-    .filter((p) => p.paidThisMonth)
-    .reduce((sum, p) => sum + p.amount, 0);
+    .filter((p: any) => p.paidThisMonth)
+    .reduce((sum: number, p: any) => sum + p.amount, 0);
   const pendingAmount = subscription.people
-    .filter((p) => !p.paidThisMonth)
-    .reduce((sum, p) => sum + p.amount, 0);
+    .filter((p: any) => !p.paidThisMonth)
+    .reduce((sum: number, p: any) => sum + p.amount, 0);
 
   // ── Savings calculations ──────────────────────────────────────────
   const groupSavingsPerMonth = subscription.people.reduce(
-    (sum, p) => sum + (subscription.individualPrice - p.amount),
+    (sum: number, p: any) => sum + (subscription.individualPrice - p.amount),
     0,
   );
   const groupTotalSavings = subscription.people.reduce(
-    (sum, p) => sum + totalPersonSavings(subscription.individualPrice, p.amount, p.monthsPaid),
+    (sum: number, p: any) => sum + totalPersonSavings(subscription.individualPrice, p.amount, p.monthsPaid),
     0,
   );
   const monthsActive = monthsSinceStart(subscription.startDate);
 
-  const handleAddPerson = () => {
+  const handleAddPerson = async () => {
     if (!personName || !personPhone || !personAmount) return;
-    storage.addPerson(subscription.id, {
+    await storage.addPerson(subscription._id, {
       name: personName,
       phone: personPhone.replace(/\D/g, ""),
       amount: parseFloat(personAmount),
@@ -124,8 +128,8 @@ export default function SubscriptionDetail() {
   };
 
   const handleWhatsApp = (person: { name: string; phone: string; amount: number; monthsPaid: number }) => {
-    const pixKey = storage.state.settings.pixKey || "CHAVE_PIX_NAO_CONFIGURADA";
-    const ownerName = storage.state.settings.ownerName || "Proprietário";
+    const pixKey = storage.settings.pixKey || "CHAVE_PIX_NAO_CONFIGURADA";
+    const ownerName = storage.settings.ownerName || "Proprietário";
     const dueDate = getDueDate(subscription.dueDay);
     const personSavings = totalPersonSavings(
       subscription.individualPrice,
@@ -151,9 +155,9 @@ export default function SubscriptionDetail() {
     window.open(url, "_blank");
   };
 
-  const handleDeletePerson = (personId: string) => {
+  const handleDeletePerson = async (personId: Id<"people">) => {
     if (confirm("Remover esta pessoa?")) {
-      storage.deletePerson(subscription.id, personId);
+      await storage.removePerson(personId);
       toast.success("Pessoa removida");
     }
   };
@@ -276,7 +280,7 @@ export default function SubscriptionDetail() {
         </div>
 
         {/* Warning if PIX not configured */}
-        {!storage.state.settings.pixKey && (
+        {!storage.settings.pixKey && (
           <div className="flex items-start gap-2 p-3 rounded-xl bg-[var(--pending)]/5 border border-[var(--pending)]/20 mb-3">
             <AlertCircle className="size-4 text-[var(--pending)] mt-0.5 flex-shrink-0" />
             <div>
@@ -290,7 +294,7 @@ export default function SubscriptionDetail() {
         {/* People List */}
         <div className="space-y-2">
           <AnimatePresence mode="popLayout">
-            {subscription.people.map((person, index) => {
+            {subscription.people.map((person: any, index: number) => {
               const personSav = totalPersonSavings(
                 subscription.individualPrice,
                 person.amount,
@@ -299,7 +303,7 @@ export default function SubscriptionDetail() {
 
               return (
                 <motion.div
-                  key={person.id}
+                  key={person._id}
                   layout
                   initial={{ opacity: 0, x: -12 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -369,9 +373,9 @@ export default function SubscriptionDetail() {
                                 : "bg-primary text-primary-foreground hover:bg-primary/90"
                             }`}
                             onClick={() =>
-                              storage.updatePersonStatus(
-                                subscription.id,
-                                person.id,
+                              storage.togglePersonStatus(
+                                subscription._id,
+                                person._id,
                                 !person.paidThisMonth,
                               )
                             }
@@ -396,7 +400,7 @@ export default function SubscriptionDetail() {
                             variant="ghost"
                             size="icon"
                             className="size-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
-                            onClick={() => handleDeletePerson(person.id)}
+                            onClick={() => handleDeletePerson(person._id)}
                           >
                             <Trash2 className="size-3.5" />
                           </Button>

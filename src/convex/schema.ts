@@ -16,6 +16,14 @@ export const roleValidator = v.union(
 );
 export type Role = Infer<typeof roleValidator>;
 
+const categoryValidator = v.union(
+  v.literal("video"),
+  v.literal("musica"),
+  v.literal("software"),
+  v.literal("cursos"),
+  v.literal("outro"),
+);
+
 const schema = defineSchema(
   {
     // default auth tables using convex auth.
@@ -32,12 +40,34 @@ const schema = defineSchema(
       role: v.optional(roleValidator), // role of the user. do not remove
     }).index("email", ["email"]), // index for the email. do not remove or modify
 
-    // add other tables here
+    // ── Quem me Pagou tables ──────────────────────────────────────
+    subscriptions: defineTable({
+      userId: v.string(),
+      name: v.string(),
+      category: categoryValidator,
+      icon: v.string(),
+      totalMonthly: v.number(),
+      individualPrice: v.number(),
+      startDate: v.string(),
+      dueDay: v.number(),
+    }).index("by_user", ["userId"]),
 
-    // tableName: defineTable({
-    //   ...
-    //   // table fields
-    // }).index("by_field", ["field"])
+    people: defineTable({
+      userId: v.string(),
+      subscriptionId: v.id("subscriptions"),
+      name: v.string(),
+      phone: v.string(),
+      amount: v.number(),
+      paidThisMonth: v.boolean(),
+      monthsPaid: v.number(),
+    }).index("by_subscription", ["subscriptionId"])
+      .index("by_user", ["userId"]),
+
+    settings: defineTable({
+      userId: v.string(),
+      pixKey: v.string(),
+      ownerName: v.string(),
+    }).index("by_user", ["userId"]),
   },
   {
     schemaValidation: false,

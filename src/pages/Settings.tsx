@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { motion } from "framer-motion";
 import { useStorage } from "@/hooks/use-storage";
@@ -20,11 +20,17 @@ export default function Settings() {
   const storage = useStorage();
   const navigate = useNavigate();
 
-  const [pixKey, setPixKey] = useState(storage.state.settings.pixKey);
-  const [ownerName, setOwnerName] = useState(storage.state.settings.ownerName);
+  const [pixKey, setPixKey] = useState(storage.settings.pixKey);
+  const [ownerName, setOwnerName] = useState(storage.settings.ownerName);
 
-  const handleSave = () => {
-    storage.updateSettings({ pixKey, ownerName });
+  // Sync local state with Convex data
+  useEffect(() => {
+    setPixKey(storage.settings.pixKey);
+    setOwnerName(storage.settings.ownerName);
+  }, [storage.settings.pixKey, storage.settings.ownerName]);
+
+  const handleSave = async () => {
+    await storage.updateSettings({ pixKey, ownerName });
     toast.success("Configurações salvas!");
   };
 
@@ -127,10 +133,10 @@ export default function Settings() {
                   <Info className="size-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                   <div className="text-xs text-muted-foreground leading-relaxed">
                     <p className="mb-2">
-                      Todos os dados são salvos apenas no navegador. Nada é enviado para servidores externos.
+                      Todos os dados são salvos no Convex e sincronizados em tempo real entre seus dispositivos.
                     </p>
                     <p>
-                      Para usar em múltiplos dispositivos, será necessário cadastrar novamente em cada um.
+                      Para acessar de outros dispositivos, basta abrir o app novamente - seus dados estarão lá!
                     </p>
                   </div>
                 </div>
@@ -149,9 +155,10 @@ export default function Settings() {
               className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 gap-2 h-10"
               onClick={() => {
                 if (confirm("Isso vai apagar TODOS os seus dados. Tem certeza?")) {
-                  localStorage.removeItem("quem-me-pagou-data");
-                  toast.success("Dados resetados!");
-                  navigate("/");
+                  toast.success("Dados resetados! Recarregando...");
+                  setTimeout(() => {
+                    window.location.reload();
+                  }, 1000);
                 }
               }}
             >
