@@ -16,6 +16,8 @@ const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
 const SubscriptionDetail = lazy(() => import("./pages/SubscriptionDetail.tsx"));
 const Settings = lazy(() => import("./pages/Settings.tsx"));
+const Reports = lazy(() => import("./pages/Reports.tsx"));
+const PublicView = lazy(() => import("./pages/PublicView.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 // Simple loading fallback for route transitions
@@ -131,6 +133,8 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/subscription/:id" element={<SubscriptionDetail />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/view/:id" element={<PublicView />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>

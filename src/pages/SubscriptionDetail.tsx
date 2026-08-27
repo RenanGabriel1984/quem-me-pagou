@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   FileText,
   StickyNote,
+  Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -247,23 +248,40 @@ export default function SubscriptionDetail() {
           </div>
         </div>
 
-        {/* PIX Actions Row */}
-        {storage.settings.pixKey && (
-          <div className="flex items-center gap-2 mb-4">
-            <PixCopyButton
-              pixKey={storage.settings.pixKey}
-              amount={pendingDebt > 0 ? pendingDebt : subscription.totalMonthly}
-              ownerName={storage.settings.ownerName || "Quem Me Pagou"}
-              description={`Cota ${subscription.name}`}
-            />
-            <PixQRCode
-              pixKey={storage.settings.pixKey}
-              amount={pendingDebt > 0 ? pendingDebt : subscription.totalMonthly}
-              ownerName={storage.settings.ownerName || "Quem Me Pagou"}
-              description={`Cota ${subscription.name}`}
-            />
-          </div>
-        )}
+        {/* PIX Actions + Share Row */}
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          {storage.settings.pixKey && (
+            <>
+              <PixCopyButton
+                pixKey={storage.settings.pixKey}
+                amount={pendingDebt > 0 ? pendingDebt : subscription.totalMonthly}
+                ownerName={storage.settings.ownerName || "Quem Me Pagou"}
+                description={`Cota ${subscription.name}`}
+              />
+              <PixQRCode
+                pixKey={storage.settings.pixKey}
+                amount={pendingDebt > 0 ? pendingDebt : subscription.totalMonthly}
+                ownerName={storage.settings.ownerName || "Quem Me Pagou"}
+                description={`Cota ${subscription.name}`}
+              />
+            </>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 gap-1.5 rounded-lg border-border/40 text-xs min-w-[44px] min-h-[44px]"
+            onClick={() => {
+              const shareUrl = `${window.location.origin}/view/${subscription._id}`;
+              const message = `Confira a transparência da assinatura *${subscription.name}*:\n\n${shareUrl}`;
+              const waUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+              window.open(waUrl, "_blank");
+              toast.success("Link de transparência compartilhado!");
+            }}
+          >
+            <Share2 className="size-3.5" />
+            Compartilhar
+          </Button>
+        </div>
 
         {/* Individual vs Group Comparison Card */}
         {subscription.individualPrice > 0 && (

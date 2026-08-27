@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Menu, X, Sun, Moon, Settings, Home, RotateCcw } from "lucide-react";
+import { Menu, X, Sun, Moon, Settings, Home, RotateCcw, BarChart3 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { Link, useLocation } from "react-router";
 import { useStorage } from "../hooks/use-storage";
@@ -12,6 +12,7 @@ export function AppHeader() {
 
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: Home },
+    { path: "/reports", label: "Relatórios", icon: BarChart3 },
     { path: "/settings", label: "Configurações", icon: Settings },
   ];
 
