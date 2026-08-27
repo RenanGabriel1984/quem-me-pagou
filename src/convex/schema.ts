@@ -71,6 +71,7 @@ const schema = defineSchema(
       userId: v.string(),
       pixKey: v.string(),
       ownerName: v.string(),
+      whatsappTemplate: v.optional(v.string()),
     }).index("by_user", ["userId"]),
   },
   {

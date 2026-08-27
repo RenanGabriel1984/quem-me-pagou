@@ -258,7 +258,7 @@ export default function SubscriptionDetail() {
     .reduce((sum: number, p: any) => sum + p.amount * (p.unpaidMonths || 0), 0);
 
   const groupTotalSavings = subscription.people.reduce(
-    (sum: number, p: any) => sum + totalPersonSavings(subscription.individualPrice, p.amount, p.monthsPaid),
+    (sum: number, p: any) => sum + totalPersonSavings(subscription.individualPrice, p.amount, p.monthsPaid, subscription.startDate),
     0,
   );
   const monthsActive = monthsSinceStart(subscription.startDate);
@@ -284,6 +284,7 @@ export default function SubscriptionDetail() {
       subscription.individualPrice,
       person.amount,
       person.monthsPaid,
+      subscription.startDate,
     );
     const totalDue = person.amount * (person.unpaidMonths || 0);
     const startLabel = formatStartMonth(subscription.startDate);
@@ -295,6 +296,36 @@ export default function SubscriptionDetail() {
       return;
     }
 
+    // Use custom template if set, otherwise use default
+    const customTemplate = (storage.settings as any).whatsappTemplate;
+    if (customTemplate) {
+      const monthlySaving = subscription.individualPrice - person.amount;
+      const pendencia = person.unpaidMonths > 0
+        ? `⚠️ Pendência: *${person.unpaidMonths}* mês(es) em aberto\n💰 Valor Total Devido: *${formatCurrency(totalDue)}* (${formatCurrency(person.amount)}/mês)\n`
+        : "";
+      const valorDisplay = person.unpaidMonths > 0 ? formatCurrency(totalDue) : formatCurrency(person.amount);
+      const economiaText = personSavings > 0
+        ? `Você já economizou *${formatCurrency(personSavings)}* desde ${startLabel}!`
+        : `Ao dividir esse plano, você economiza *${formatCurrency(monthlySaving)}* por mês!`;
+
+      const message = customTemplate
+        .replace(/{nome}/g, person.name)
+        .replace(/{assinatura}/g, subscription.name)
+        .replace(/{valor}/g, valorDisplay)
+        .replace(/{chave_pix}/g, pixKey)
+        .replace(/{data_vencimento}/g, dueDate)
+        .replace(/{economia}/g, economiaText)
+        .replace(/{pendencia}/g, pendencia)
+        .replace(/{valor_total_devido}/g, formatCurrency(totalDue))
+        .replace(/{meses_aberto}/g, String(person.unpaidMonths || 0))
+        .replace(/{inicio}/g, startLabel);
+
+      const url = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(message)}`;
+      window.open(url, "_blank");
+      return;
+    }
+
+    // Default template
     const lines: string[] = [
       `Fala ${person.name}! 🍿`,
       ``,
@@ -310,7 +341,7 @@ export default function SubscriptionDetail() {
     }
 
     lines.push(`🔑 Pix: *${pixKey}*`);
-    lines.push(`📅 Vencimento: *${dueDate}*`);
+      lines.push(`📅 Vencimento: *${dueDate}*`);
     lines.push(``);
 
     if (personSavings > 0) {
@@ -350,7 +381,7 @@ export default function SubscriptionDetail() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-xl">{subscription.icon}</span>
-              <h1 className="text-xl font-bold truncate">{subscription.name}</h1>
+              <h1 className="text-xl font-bold break-words">{subscription.name}</h1>
             </div>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span
@@ -508,6 +539,7 @@ export default function SubscriptionDetail() {
                 subscription.individualPrice,
                 person.amount,
                 person.monthsPaid,
+                subscription.startDate,
               );
               const personTotalDue = person.amount * (person.unpaidMonths || 0);
 
@@ -549,7 +581,7 @@ export default function SubscriptionDetail() {
                         {/* Info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium truncate text-sm">{person.name}</span>
+                            <span className="font-medium break-words text-sm">{person.name}</span>
                             {person.paidThisMonth && (
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-[var(--paid)]/15 text-[var(--paid)] text-[10px] font-semibold">
                                 <Check className="size-2.5" />

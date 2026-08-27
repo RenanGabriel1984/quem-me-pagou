@@ -14,6 +14,8 @@ import {
   CloudUpload,
   Loader2,
   Copy,
+  MessageSquare,
+  RotateCcw as ResetIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,6 +28,7 @@ export default function Settings() {
 
   const [pixKey, setPixKey] = useState(storage.settings.pixKey);
   const [ownerName, setOwnerName] = useState(storage.settings.ownerName);
+  const [whatsappTemplate, setWhatsappTemplate] = useState((storage.settings as any).whatsappTemplate || "");
 
   // Backup/restore state
   const [gistId, setGistId] = useState(() => {
@@ -49,10 +52,11 @@ export default function Settings() {
   useEffect(() => {
     setPixKey(storage.settings.pixKey);
     setOwnerName(storage.settings.ownerName);
-  }, [storage.settings.pixKey, storage.settings.ownerName]);
+    setWhatsappTemplate((storage.settings as any).whatsappTemplate || "");
+  }, [storage.settings.pixKey, storage.settings.ownerName, (storage.settings as any).whatsappTemplate]);
 
   const handleSave = async () => {
-    await storage.updateSettings({ pixKey, ownerName });
+    await storage.updateSettings({ pixKey, ownerName, whatsappTemplate });
     toast.success("Configurações salvas!");
   };
 
@@ -209,6 +213,60 @@ export default function Settings() {
                   onChange={(e) => setPixKey(e.target.value)}
                   className="h-12"
                 />
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* WhatsApp Message Template */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+          >
+            <Card className="bg-card/60 border-border/40 shadow-none">
+              <CardContent className="px-5 py-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center justify-center size-10 rounded-xl bg-green-500/10">
+                    <MessageSquare className="size-5 text-green-500" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-sm">Template da Mensagem WhatsApp</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Personalize a mensagem de cobrança
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setWhatsappTemplate("")}
+                    className="text-xs text-muted-foreground hover:text-foreground p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-surface active:scale-90"
+                    title="Restaurar padrão"
+                  >
+                    <ResetIcon className="size-3.5" />
+                  </button>
+                </div>
+                <textarea
+                  value={whatsappTemplate}
+                  onChange={(e) => setWhatsappTemplate(e.target.value)}
+                  placeholder="Deixe vazio para usar o template padrão..."
+                  rows={8}
+                  className="w-full rounded-xl border border-border/60 bg-background px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring/50"
+                />
+                <div className="mt-3 space-y-1.5">
+                  <p className="text-[11px] font-medium text-muted-foreground">Variáveis disponíveis:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["{nome}", "{assinatura}", "{valor}", "{chave_pix}", "{data_vencimento}", "{economia}", "{pendencia}", "{valor_total_devido}", "{meses_aberto}", "{inicio}"].map((v) => (
+                      <span
+                        key={v}
+                        className="inline-flex items-center px-2 py-0.5 rounded-md bg-muted/60 text-[10px] font-mono text-muted-foreground cursor-pointer hover:bg-muted active:scale-95"
+                        onClick={() => {
+                          navigator.clipboard.writeText(v);
+                          toast.success(`Variável ${v} copiada!`);
+                        }}
+                      >
+                        {v}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </motion.div>

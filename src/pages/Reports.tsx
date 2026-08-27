@@ -64,30 +64,49 @@ export default function Reports() {
   const [activePeriod, setActivePeriod] = useState<Period>("all");
   const isLoading = storage.subscriptions === undefined;
 
-  // Filter by period based on dueDay and lastPaymentDate
-  const filterByPeriod = (sub: any) => {
-    if (activePeriod === "all") return true;
+  /**
+   * Filter subscriptions that are active during the selected period.
+   * A subscription is "active" in a period if its startDate is before or
+   * during that period (i.e. it has been running at some point in the period).
+   * We include all subscriptions for "all", and filter by start date for specific periods.
+   */
+  const filteredSubs = useMemo(() => {
+    const allSubs = storage.subscriptionsWithPeople || [];
+    if (activePeriod === "all") return allSubs;
 
     const now = new Date();
-    const startMonth = sub.startDate ? new Date(sub.startDate) : new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
 
-    switch (activePeriod) {
-      case "month": {
-        return now.getMonth() === startMonth.getMonth() &&
-          now.getFullYear() === startMonth.getFullYear() ||
-          (now.getMonth() + 1) % 12 === ((startMonth.getMonth()) % 12);
+    return allSubs.filter((sub) => {
+      const startDate = sub.startDate ? new Date(sub.startDate) : new Date();
+      const startMonth = startDate.getMonth();
+      const startYear = startDate.getFullYear();
+
+      switch (activePeriod) {
+        case "month": {
+          // Subscription started at or before this month (active this month)
+          return (
+            startYear < currentYear ||
+            (startYear === currentYear && startMonth <= currentMonth)
+          );
+        }
+        case "quarter": {
+          const currentQuarter = Math.floor(currentMonth / 3);
+          const startQuarter = Math.floor(startMonth / 3);
+          // Started at or before this quarter
+          return (
+            startYear < currentYear ||
+            (startYear === currentYear && startQuarter <= currentQuarter)
+          );
+        }
+        case "year":
+          return startYear <= currentYear;
+        default:
+          return true;
       }
-      case "quarter": {
-        const q = Math.floor(now.getMonth() / 3);
-        const subQ = Math.floor(startMonth.getMonth() / 3);
-        return q === subQ && now.getFullYear() === startMonth.getFullYear();
-      }
-      case "year":
-        return now.getFullYear() === startMonth.getFullYear();
-      default:
-        return true;
-    }
-  };
+    });
+  }, [storage.subscriptionsWithPeople, activePeriod]);
 
   if (isLoading) {
     return (
@@ -100,7 +119,7 @@ export default function Reports() {
     );
   }
 
-  const subs = (storage.subscriptionsWithPeople || []).filter(filterByPeriod);
+  const subs = filteredSubs;
 
   // ── Category distribution data ────────────────────────────────────
   const categoryData = subs.reduce(
@@ -126,13 +145,19 @@ export default function Reports() {
   // ── Monthly savings by subscription (bar chart) ───────────────────
   const savingsData = subs
     .map((sub) => {
-      const monthlySavings = sub.people.reduce(
+      const monthlySaving = sub.people.reduce(
         (sum: number, p: any) => sum + Math.max(0, sub.individualPrice - p.amount),
+        0,
+      );
+      // Use startDate-based accumulated savings per subscription
+      const accumulatedSaving = sub.people.reduce(
+        (sum: number, p: any) => sum + totalPersonSavings(sub.individualPrice, p.amount, p.monthsPaid, sub.startDate),
         0,
       );
       return {
         name: sub.name,
-        economia: monthlySavings,
+        economia: monthlySaving,
+        economiaAcumulada: accumulatedSaving,
         custoIndividual: sub.individualPrice * sub.people.length,
         custoGrupo: sub.totalMonthly,
       };
@@ -147,22 +172,39 @@ export default function Reports() {
   );
   const totalMonthlySavings = totalIndividualAll - totalMonthlyGroup;
 
-  // ── Annual projection ─────────────────────────────────────────────
-  const annualSavings = storage.totalAccumulatedSavings;
+  // ── Accumulated savings (from start dates, not monthsPaid only) ───
+  const annualSavings = subs.reduce(
+    (sum, s) =>
+      sum +
+      s.people.reduce(
+        (pSum, p) => pSum + totalPersonSavings(s.individualPrice, p.amount, p.monthsPaid, s.startDate),
+        0,
+      ),
+    0,
+  );
   const monthlySavingsRate = totalMonthlySavings;
 
   // ── Cost comparison: gross vs admin pays ──────────────────────────
   const totalGross = totalIndividualAll;
   const adminPays = totalMonthlyGroup;
 
+  // ── Max months of operation ───────────────────────────────────────
+  const maxMonthsActive = subs.length > 0
+    ? Math.max(...subs.map((s) => monthsSinceStart(s.startDate)))
+    : 0;
+
   // ── CSV Export ────────────────────────────────────────────────────
   const handleExportCSV = () => {
-    const headers = ["Assinatura", "Categoria", "Total Mensal", "Preço Individual", "Pessoas", "Pago", "Pendente", "Economia Mensal"];
+    const headers = ["Assinatura", "Categoria", "Total Mensal", "Preço Individual", "Pessoas", "Pago", "Pendente", "Economia Mensal", "Economia Acumulada"];
     const rows = subs.map((sub) => {
       const paid = sub.people.filter((p: any) => p.paidThisMonth).length;
       const pending = sub.people.length - paid;
       const econ = sub.people.reduce(
         (sum: number, p: any) => sum + Math.max(0, sub.individualPrice - p.amount),
+        0,
+      );
+      const econAccum = sub.people.reduce(
+        (sum: number, p: any) => sum + totalPersonSavings(sub.individualPrice, p.amount, p.monthsPaid, sub.startDate),
         0,
       );
       return [
@@ -174,6 +216,7 @@ export default function Reports() {
         paid,
         pending,
         econ.toFixed(2),
+        econAccum.toFixed(2),
       ].join(",");
     });
 
@@ -302,8 +345,8 @@ export default function Reports() {
                   {formatCurrency(annualSavings)}
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {subs.length > 0
-                    ? `Em ${subs.reduce((max, s) => Math.max(max, monthsSinceStart(s.startDate)), 0)} meses de operação`
+                  {maxMonthsActive > 0
+                    ? `Em ${maxMonthsActive} meses de operação`
                     : "Sem dados"}
                 </p>
               </CardContent>
@@ -450,7 +493,7 @@ export default function Reports() {
                         }}
                       />
                       <Bar dataKey="custoGrupo" name="Custo Grupo" fill="var(--paid)" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="economia" name="Economia" fill="var(--pending)" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="economia" name="Economia Mensal" fill="var(--pending)" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -463,8 +506,40 @@ export default function Reports() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="size-2.5 rounded-sm bg-[var(--pending)]" />
-                    <span className="text-[10px] text-muted-foreground">Economia Individual</span>
+                    <span className="text-[10px] text-muted-foreground">Economia Mensal</span>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* ── Accumulated Savings per Subscription ──────────────────── */}
+        {savingsData.length > 0 && savingsData.some((s) => s.economiaAcumulada > 0) && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="mb-5"
+          >
+            <Card className="bg-card/60 border-border/40 shadow-none">
+              <CardContent className="px-5 py-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <PiggyBank className="size-4 text-emerald-400" />
+                  <p className="text-sm font-semibold">Economia Acumulada por Assinatura</p>
+                </div>
+
+                <div className="space-y-3">
+                  {savingsData
+                    .filter((s) => s.economiaAcumulada > 0)
+                    .map((s) => (
+                      <div key={s.name} className="flex items-center gap-3">
+                        <span className="text-sm font-medium flex-1 truncate">{s.name}</span>
+                        <span className="text-sm font-bold text-emerald-400">
+                          {formatCurrency(s.economiaAcumulada)}
+                        </span>
+                      </div>
+                    ))}
                 </div>
               </CardContent>
             </Card>

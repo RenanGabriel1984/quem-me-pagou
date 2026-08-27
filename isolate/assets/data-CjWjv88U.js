@@ -1,0 +1,1 @@
+function r(t){const n=new Date(t),e=new Date,o=(e.getFullYear()-n.getFullYear())*12+(e.getMonth()-n.getMonth());return Math.max(0,o)}function s(t,n){return Math.max(0,t-n)}function c(t,n,e,o){const a=o?Math.max(e||0,r(o)):e||0;return s(t,n)*a}function h(t){return new Date(t).toLocaleDateString("pt-BR",{month:"short",year:"numeric"})}export{h as f,r as m,c as t};

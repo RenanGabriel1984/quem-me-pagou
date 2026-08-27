@@ -51,20 +51,28 @@ export function monthlySavings(
   return Math.max(0, individualPrice - shareAmount);
 }
 
-/** Total savings for one person over the months they've paid. */
+/**
+ * Total savings for one person over the subscription lifetime.
+ * Uses monthsSinceStart(subscriptionStartDate) to calculate retroactive
+ * savings even when monthsPaid hasn't been updated yet.
+ */
 export function totalPersonSavings(
   individualPrice: number,
   shareAmount: number,
   monthsPaid: number,
+  startDate?: string,
 ): number {
-  return monthlySavings(individualPrice, shareAmount) * monthsPaid;
+  const effectiveMonths = startDate
+    ? Math.max(monthsPaid || 0, monthsSinceStart(startDate))
+    : monthsPaid || 0;
+  return monthlySavings(individualPrice, shareAmount) * effectiveMonths;
 }
 
 /** Total savings for the whole group (all people combined). */
 export function totalGroupSavings(sub: Subscription): number {
   return sub.people.reduce(
     (sum, p) =>
-      sum + totalPersonSavings(sub.individualPrice, p.amount, p.monthsPaid),
+      sum + totalPersonSavings(sub.individualPrice, p.amount, p.monthsPaid, sub.startDate),
     0,
   );
 }
@@ -76,3 +84,23 @@ export function formatStartMonth(startDate: string): string {
     year: "numeric",
   });
 }
+
+/** Format date for display, e.g. "15 de agosto de 2026" */
+export function formatDateBR(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+/** Default WhatsApp message template */
+export const DEFAULT_WHATSAPP_TEMPLATE = `Fala {nome}! 🍿
+
+Passando para lembrar da sua cota do *{assinatura}*.
+
+{pendencia}💰 Valor: *{valor}*
+🔑 Pix: *{chave_pix}*
+📅 Vencimento: *{data_vencimento}*
+
+💡 {economia}`;

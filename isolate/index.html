@@ -9,16 +9,29 @@
   <meta name="theme-color" content="#0f1219" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="description" content="Gerencie suas assinaturas compartiladas e acompanhe quem pagou." />
+  <meta name="description" content="Gerencie suas assinaturas compartilhadas e acompanhe quem pagou." />
   <title>Quem Me Pagou</title>
-  <script type="module" crossorigin src="/assets/index-BR0Aard9.js"></script>
+  <script>
+    // Apply theme from localStorage BEFORE paint to prevent flash
+    (function() {
+      var theme = localStorage.getItem('qmp-theme') || 'dark';
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      // Also remove any hardcoded dark class from body (legacy)
+      document.body.classList.remove('dark');
+    })();
+  </script>
+  <script type="module" crossorigin src="/assets/index-BxwoqHdr.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/react-vendor-KgAAZzzj.js">
   <link rel="modulepreload" crossorigin href="/assets/framer-motion-CzqMM4Kv.js">
   <link rel="modulepreload" crossorigin href="/assets/radix-ui-hQR5kA4t.js">
-  <link rel="stylesheet" crossorigin href="/assets/index-CvbAS93L.css">
+  <link rel="stylesheet" crossorigin href="/assets/index-DXp091Ab.css">
 </head>
 
-<body class="dark">
+<body>
   <div id="root"></div>
 </body>
 

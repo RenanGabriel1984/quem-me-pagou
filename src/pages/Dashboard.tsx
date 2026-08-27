@@ -787,7 +787,7 @@ export default function Dashboard() {
                   const totalPeople = sub.people.length;
                   const pendingPeople = totalPeople - paidCount;
                   const subSavings = sub.people.reduce(
-                    (sum: number, p: any) => sum + storage.getPersonSavings(sub.individualPrice, p.amount, p.monthsPaid),
+                    (sum: number, p: any) => sum + storage.getPersonSavings(sub.individualPrice, p.amount, p.monthsPaid, sub.startDate),
                     0,
                   );
                   const subPendingDebt = sub.people
@@ -815,7 +815,7 @@ export default function Dashboard() {
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                  <h3 className="font-semibold truncate">{sub.name}</h3>
+                                  <h3 className="font-semibold break-words">{sub.name}</h3>
                                   <span
                                     className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${categoryColors[sub.category]}`}
                                   >

@@ -3,14 +3,22 @@ import { api } from "../convex/_generated/api";
 import { useCallback, useMemo } from "react";
 import type { Id } from "../convex/_generated/dataModel";
 
-// Helper to compute total person savings
+// Helper to compute total person savings (uses startDate for retroactive calc)
 function totalPersonSavings(
   individualPrice: number,
   shareAmount: number,
   monthsPaid: number,
+  startDate?: string,
 ): number {
   const monthlySavings = Math.max(0, individualPrice - shareAmount);
-  return monthlySavings * monthsPaid;
+  if (startDate) {
+    const start = new Date(startDate);
+    const now = new Date();
+    const monthsElapsed = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+    const effectiveMonths = Math.max(monthsPaid || 0, Math.max(0, monthsElapsed));
+    return monthlySavings * effectiveMonths;
+  }
+  return monthlySavings * (monthsPaid || 0);
 }
 
 // Helper to get month name in Portuguese
@@ -31,7 +39,7 @@ export function useStorage() {
   // Single query for ALL people (no more useQuery in loop!)
   const allPeople = useQuery(api.people.listAll) ?? [];
   // Settings
-  const settings = useQuery(api.settings.get) ?? { pixKey: "", ownerName: "" };
+  const settings = useQuery(api.settings.get) ?? { pixKey: "", ownerName: "", whatsappTemplate: "" };
 
   // Mutations
   const createSubscription = useMutation(api.subscriptions.create);
@@ -172,8 +180,12 @@ export function useStorage() {
 
   // Wrapper: update settings
   const updateSettings = useCallback(
-    async (newSettings: { pixKey: string; ownerName: string }) => {
-      await upsertSettings(newSettings);
+    async (newSettings: { pixKey: string; ownerName: string; whatsappTemplate?: string }) => {
+      await upsertSettings({
+        pixKey: newSettings.pixKey,
+        ownerName: newSettings.ownerName,
+        whatsappTemplate: newSettings.whatsappTemplate ?? "",
+      });
     },
     [upsertSettings]
   );
@@ -207,14 +219,14 @@ export function useStorage() {
     );
   }, 0);
 
-  // Total accumulated savings
+  // Total accumulated savings (uses startDate for retroactive calculation)
   const totalAccumulatedSavings = subscriptionsWithPeople.reduce(
     (sum, s) => {
       return (
         sum +
         s.people.reduce(
           (pSum, p) =>
-            pSum + totalPersonSavings(s.individualPrice, p.amount, p.monthsPaid),
+            pSum + totalPersonSavings(s.individualPrice, p.amount, p.monthsPaid, s.startDate),
           0
         )
       );
@@ -222,10 +234,10 @@ export function useStorage() {
     0
   );
 
-  // Helper: per-person savings
+  // Helper: per-person savings (with optional startDate for retroactive calc)
   const getPersonSavings = useCallback(
-    (individualPrice: number, amount: number, monthsPaid: number) => {
-      return totalPersonSavings(individualPrice, amount, monthsPaid);
+    (individualPrice: number, amount: number, monthsPaid: number, startDate?: string) => {
+      return totalPersonSavings(individualPrice, amount, monthsPaid, startDate);
     },
     []
   );
