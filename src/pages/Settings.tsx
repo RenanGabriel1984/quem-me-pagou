@@ -140,6 +140,7 @@ export default function Settings() {
           monthsPaid: p.monthsPaid,
           unpaidMonths: p.unpaidMonths,
           lastPaymentDate: p.lastPaymentDate,
+          lastPaidAt: p.lastPaidAt,
           proofNote: p.proofNote,
         })),
         settings: result.data.settings,

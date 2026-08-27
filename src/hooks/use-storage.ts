@@ -3,16 +3,6 @@ import { api } from "../convex/_generated/api";
 import { useCallback } from "react";
 import type { Id } from "../convex/_generated/dataModel";
 
-// Helper to compute months since a start date
-function monthsSinceStart(startDate: string): number {
-  const start = new Date(startDate);
-  const now = new Date();
-  const months =
-    (now.getFullYear() - start.getFullYear()) * 12 +
-    (now.getMonth() - start.getMonth());
-  return Math.max(0, months);
-}
-
 // Helper to compute total person savings
 function totalPersonSavings(
   individualPrice: number,
