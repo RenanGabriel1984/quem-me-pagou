@@ -78,6 +78,16 @@ src/
 3. Confirme a instalação
 4. O app aparecerá na tela inicial como um aplicativo nativo
 
+## 🔒 Segurança
+
+Este projeto utiliza o **GitHub Advanced Security** para manter o código seguro:
+
+- **Dependabot** — Monitora automaticamente as dependências npm em busca de vulnerabilidades e cria Pull Requests para atualizações
+- **CodeQL** — Análise estática de código (SAST) que detecta vulnerabilidades de segurança no código TypeScript/JavaScript
+- **Secret Scanning** — Detecta chaves, tokens e credenciais acidentalmente commitadas no repositório
+
+As configurações ficam em `.github/dependabot.yml` e `.github/workflows/codeql.yml`.
+
 ## 🔒 Dados
 
 Todos os dados são armazenados no **Convex** e sincronizados em tempo real entre dispositivos. Não é necessário criar conta — basta abrir o app e começar a usar.
