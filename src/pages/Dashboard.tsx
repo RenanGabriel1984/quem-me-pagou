@@ -72,6 +72,8 @@ function AddSubscriptionDialog({
   const [category, setCategory] = useState<Category>("video");
   const [totalMonthly, setTotalMonthly] = useState("");
   const [individualPrice, setIndividualPrice] = useState("");
+  const [participantCount, setParticipantCount] = useState("");
+  const [isManualPrice, setIsManualPrice] = useState(false);
   const [startDate, setStartDate] = useState(
     new Date().toISOString().slice(0, 10),
   );
@@ -87,6 +89,35 @@ function AddSubscriptionDialog({
 
   const addSubscription = useMutation(api.subscriptions.create);
 
+  // Auto-calculate individual price from totalMonthly / participantCount
+  const suggestedPrice =
+    totalMonthly && participantCount && parseInt(participantCount) > 0
+      ? (parseFloat(totalMonthly) / parseInt(participantCount)).toFixed(2)
+      : null;
+
+  // When totalMonthly or participantCount changes, update suggested price
+  // unless user manually edited it
+  const handleTotalMonthlyChange = (value: string) => {
+    setTotalMonthly(value);
+    if (!isManualPrice && participantCount && parseInt(participantCount) > 0) {
+      const calc = (parseFloat(value) / parseInt(participantCount)).toFixed(2);
+      setIndividualPrice(calc);
+    }
+  };
+
+  const handleParticipantCountChange = (value: string) => {
+    setParticipantCount(value);
+    if (!isManualPrice && totalMonthly && parseInt(value) > 0) {
+      const calc = (parseFloat(totalMonthly) / parseInt(value)).toFixed(2);
+      setIndividualPrice(calc);
+    }
+  };
+
+  const handleIndividualPriceChange = (value: string) => {
+    setIsManualPrice(true);
+    setIndividualPrice(value);
+  };
+
   const handleSubmit = async () => {
     if (!name || !totalMonthly) return;
     await addSubscription({
@@ -101,6 +132,8 @@ function AddSubscriptionDialog({
     setName("");
     setTotalMonthly("");
     setIndividualPrice("");
+    setParticipantCount("");
+    setIsManualPrice(false);
     setStartDate(new Date().toISOString().slice(0, 10));
     setDueDay("15");
     onClose();
@@ -160,29 +193,51 @@ function AddSubscriptionDialog({
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Valor Mensal do Grupo (R$)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="0,00"
-                    value={totalMonthly}
-                    onChange={(e) => setTotalMonthly(e.target.value)}
-                    className="h-12"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Preço Individual Est. (R$)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="0,00"
-                    value={individualPrice}
-                    onChange={(e) => setIndividualPrice(e.target.value)}
-                    className="h-12"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label>Valor Mensal do Grupo (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0,00"
+                  value={totalMonthly}
+                  onChange={(e) => handleTotalMonthlyChange(e.target.value)}
+                  className="h-12"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Quantidade de Participantes</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="Ex: 4"
+                  value={participantCount}
+                  onChange={(e) => handleParticipantCountChange(e.target.value)}
+                  className="h-12"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Preço Individual Est. (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0,00"
+                  value={individualPrice}
+                  onChange={(e) => handleIndividualPriceChange(e.target.value)}
+                  className="h-12"
+                />
+                {suggestedPrice && !isManualPrice && (
+                  <p className="text-xs text-primary/70 flex items-center gap-1 pl-0.5">
+                    💡 Sugestão automática: {formatCurrency(parseFloat(suggestedPrice))} por pessoa
+                  </p>
+                )}
+                {isManualPrice && suggestedPrice && individualPrice !== suggestedPrice && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 pl-0.5">
+                    ✏️ Valor manual (sugestão: {formatCurrency(parseFloat(suggestedPrice))})
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
